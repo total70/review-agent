@@ -7,6 +7,9 @@ pub struct AnthropicProvider {
     api_key: String,
 }
 
+/// Default max tokens for Anthropic requests
+const DEFAULT_MAX_TOKENS: u32 = 4096;
+
 impl AnthropicProvider {
     pub fn new(api_key: String) -> Self {
         Self { api_key }
@@ -57,7 +60,7 @@ impl LlmProvider for AnthropicProvider {
                 { "role": "user", "content": user }
             ],
             "stream": stream,
-            "max_tokens": 4096
+            "max_tokens": DEFAULT_MAX_TOKENS
         })
         .to_string()
     }

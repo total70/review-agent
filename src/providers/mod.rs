@@ -68,9 +68,9 @@ pub async fn stream_response<P: LlmProvider + ?Sized>(
     no_think: bool,
 ) -> Result<String> {
     let client = Client::new();
-    
+
     let body = provider.build_request_body(model, system_prompt, user_prompt, true, no_think);
-    
+
     let mut headers = reqwest::header::HeaderMap::new();
     for (key, value) in provider.headers() {
         if let (Ok(name), Ok(val)) = (
@@ -99,16 +99,24 @@ pub async fn stream_response<P: LlmProvider + ?Sized>(
     let mut stream = response.bytes_stream();
     let mut full_response = String::new();
 
+    // Buffer across chunk boundaries to ensure we split on newlines only
+    let mut buffer = String::new();
     while let Some(chunk) = stream.next().await {
-        let bytes = chunk.context("Failed to read stream chunk")?;
-        let text = String::from_utf8_lossy(&bytes);
-
-        for line in text.lines() {
-            if let Some(content) = provider.extract_content(line) {
+        let bytes = chunk.context("stream chunk")?;
+        buffer.push_str(&String::from_utf8_lossy(&bytes));
+        while let Some(pos) = buffer.find('\n') {
+            let line = buffer[..pos].to_string();
+            buffer.drain(..=pos);
+            if let Some(content) = provider.extract_content(&line) {
                 print!("{}", content);
                 full_response.push_str(&content);
             }
         }
+    }
+    // flush remaining buffer
+    if let Some(content) = provider.extract_content(&buffer) {
+        print!("{}", content);
+        full_response.push_str(&content);
     }
 
     Ok(full_response)
