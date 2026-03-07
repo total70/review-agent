@@ -32,12 +32,22 @@ impl LlmProvider for OpenAIProvider {
 
     fn headers(&self) -> HashMap<String, String> {
         let mut headers = HashMap::new();
-        headers.insert("Authorization".to_string(), format!("Bearer {}", self.api_key));
+        headers.insert(
+            "Authorization".to_string(),
+            format!("Bearer {}", self.api_key),
+        );
         headers.insert("Content-Type".to_string(), "application/json".to_string());
         headers
     }
 
-    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, _no_think: bool) -> String {
+    fn build_request_body(
+        &self,
+        model: &str,
+        system: &str,
+        user: &str,
+        stream: bool,
+        _no_think: bool,
+    ) -> String {
         serde_json::json!({
             "model": model,
             "messages": [
@@ -63,7 +73,9 @@ impl LlmProvider for OpenAIProvider {
         let value: serde_json::Value = serde_json::from_str(json).ok()?;
 
         // Extract content from delta (streaming response)
-        value["choices"][0]["delta"]["content"].as_str().map(String::from)
+        value["choices"][0]["delta"]["content"]
+            .as_str()
+            .map(String::from)
     }
 }
 
@@ -81,7 +93,11 @@ mod tests {
     fn test_openai_endpoint() {
         let provider = OpenAIProvider::new("sk-test".to_string());
         let endpoint = provider.endpoint();
-        assert!(endpoint.contains("openai.com"), "endpoint should contain 'openai.com': {}", endpoint);
+        assert!(
+            endpoint.contains("openai.com"),
+            "endpoint should contain 'openai.com': {}",
+            endpoint
+        );
     }
 
     #[test]

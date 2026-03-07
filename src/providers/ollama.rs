@@ -44,7 +44,14 @@ impl LlmProvider for OllamaProvider {
         h
     }
 
-    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, no_think: bool) -> String {
+    fn build_request_body(
+        &self,
+        model: &str,
+        system: &str,
+        user: &str,
+        stream: bool,
+        no_think: bool,
+    ) -> String {
         let model_name = model; // use model directly; don't strip tags
         let mut body = serde_json::json!({
             "model": model_name,
@@ -90,7 +97,11 @@ mod tests {
     fn test_ollama_endpoint() {
         let provider = OllamaProvider::new();
         let endpoint = provider.endpoint();
-        assert!(endpoint.contains("11434"), "endpoint should contain '11434': {}", endpoint);
+        assert!(
+            endpoint.contains("11434"),
+            "endpoint should contain '11434': {}",
+            endpoint
+        );
     }
 
     #[test]
@@ -119,7 +130,13 @@ mod tests {
     #[test]
     fn test_build_request_body() {
         let provider = OllamaProvider::new();
-        let body = provider.build_request_body("qwen3.5", "You are a helpful assistant.", "Hello", true, true);
+        let body = provider.build_request_body(
+            "qwen3.5",
+            "You are a helpful assistant.",
+            "Hello",
+            true,
+            true,
+        );
         assert!(body.contains("qwen3.5"));
         assert!(body.contains("You are a helpful assistant."));
         assert!(body.contains("Hello"));

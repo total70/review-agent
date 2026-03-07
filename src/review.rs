@@ -35,7 +35,7 @@ pub async fn run_review(input: &Path, options: &RunOptions<'_>) -> Result<PathBu
     // Create provider and stream response
     let provider = create_provider(options.provider)
         .with_context(|| format!("Failed to create provider: {}", options.provider))?;
-    
+
     let review = stream_response(
         provider.as_ref(),
         options.model,
@@ -280,8 +280,7 @@ mod tests {
             "Summary here\n**Branch:** `feat/test`",
         )
         .unwrap();
-        fs::create_dir_all(dir.path().join("patches/sub"))
-            .expect("create patches/sub");
+        fs::create_dir_all(dir.path().join("patches/sub")).expect("create patches/sub");
         fs::write(dir.path().join("patches/a.diff"), "+add a\n- remove a").unwrap();
         fs::write(dir.path().join("patches/sub/b.diff"), "+add b").unwrap();
         dir
@@ -367,8 +366,7 @@ mod tests {
             let name = path.strip_prefix(src).unwrap();
             if entry.file_type().is_dir() {
                 if !name.as_os_str().is_empty() {
-                    zip.add_directory(name.to_string_lossy(), options)
-                        .unwrap();
+                    zip.add_directory(name.to_string_lossy(), options).unwrap();
                 }
             } else {
                 zip.start_file(name.to_string_lossy(), options).unwrap();
@@ -408,11 +406,7 @@ mod tests {
         let review = make_valid_review_dir();
         let pi = PreparedInput::load(review.path()).expect("load dir");
         assert_eq!(pi.root, review.path().canonicalize().unwrap());
-        let expected_name = review
-            .path()
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap();
+        let expected_name = review.path().file_name().and_then(|s| s.to_str()).unwrap();
         assert_eq!(pi.display_name, expected_name);
 
         // Zip case

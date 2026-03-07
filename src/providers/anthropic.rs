@@ -41,7 +41,14 @@ impl LlmProvider for AnthropicProvider {
         headers
     }
 
-    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, _no_think: bool) -> String {
+    fn build_request_body(
+        &self,
+        model: &str,
+        system: &str,
+        user: &str,
+        stream: bool,
+        _no_think: bool,
+    ) -> String {
         // Pass model through unchanged; users must supply valid Anthropic model IDs
 
         serde_json::json!({
@@ -82,7 +89,11 @@ mod tests {
     fn test_anthropic_endpoint() {
         let provider = AnthropicProvider::new("sk-ant-test".to_string());
         let endpoint = provider.endpoint();
-        assert!(endpoint.contains("anthropic.com"), "endpoint should contain 'anthropic.com': {}", endpoint);
+        assert!(
+            endpoint.contains("anthropic.com"),
+            "endpoint should contain 'anthropic.com': {}",
+            endpoint
+        );
     }
 
     #[test]
@@ -113,7 +124,8 @@ mod tests {
     #[test]
     fn test_build_request_body() {
         let provider = AnthropicProvider::new("sk-ant-test".to_string());
-        let body = provider.build_request_body("claude-sonnet-4-6", "You are helpful.", "Hi", true, false);
+        let body =
+            provider.build_request_body("claude-sonnet-4-6", "You are helpful.", "Hi", true, false);
         assert!(body.contains("claude-sonnet-4-6"));
         assert!(body.contains("You are helpful."));
     }

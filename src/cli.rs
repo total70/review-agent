@@ -48,13 +48,13 @@ pub struct PackCommand {
 pub struct SharedRunArgs {
     #[arg(long, value_enum, default_value_t = Provider::Ollama)]
     pub provider: Provider,
-    
+
     #[arg(long, default_value = "qwen3.5")]
     pub model: String,
-    
+
     #[arg(long)]
     pub no_open: bool,
-    
+
     #[arg(long)]
     pub no_think: bool,
 }
@@ -174,7 +174,10 @@ mod tests {
         match cli.command {
             Commands::Pack(pack) => {
                 assert_eq!(pack.base_branch.as_deref(), Some("origin/main"));
-                assert_eq!(pack.output_dir.as_deref(), Some(PathBuf::from("output-dir").as_path()));
+                assert_eq!(
+                    pack.output_dir.as_deref(),
+                    Some(PathBuf::from("output-dir").as_path())
+                );
             }
             _ => panic!("expected Commands::Pack"),
         }

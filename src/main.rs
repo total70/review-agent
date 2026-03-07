@@ -57,22 +57,52 @@ mod tests {
         use crate::cli::Provider;
         // Ability to name and construct key public types proves modules are wired.
         // Cli/Commands from cli, RunOptions from review.
-        let _ = Cli { command: Commands::Review(crate::cli::ReviewCommand { base_branch: None, template: "general".into(), shared: crate::cli::SharedRunArgs { provider: Provider::Ollama, model: "qwen3.5".into(), no_open: false, no_think: false } }) };
+        let _ = Cli {
+            command: Commands::Review(crate::cli::ReviewCommand {
+                base_branch: None,
+                template: "general".into(),
+                shared: crate::cli::SharedRunArgs {
+                    provider: Provider::Ollama,
+                    model: "qwen3.5".into(),
+                    no_open: false,
+                    no_think: false,
+                },
+            }),
+        };
 
         // Construct each command variant to ensure visibility and correct shapes.
-        let _pack = Commands::Pack(crate::cli::PackCommand { base_branch: None, output_dir: None, template: "general".into() });
+        let _pack = Commands::Pack(crate::cli::PackCommand {
+            base_branch: None,
+            output_dir: None,
+            template: "general".into(),
+        });
         let _run = Commands::Run(crate::cli::RunCommand {
             input: std::path::PathBuf::from("/tmp/dummy.zip"),
-            shared: crate::cli::SharedRunArgs { provider: Provider::Ollama, model: "qwen3.5".into(), no_open: true, no_think: false },
+            shared: crate::cli::SharedRunArgs {
+                provider: Provider::Ollama,
+                model: "qwen3.5".into(),
+                no_open: true,
+                no_think: false,
+            },
         });
         let _review = Commands::Review(crate::cli::ReviewCommand {
             base_branch: Some("main".into()),
             template: "rust".into(),
-            shared: crate::cli::SharedRunArgs { provider: Provider::Ollama, model: "qwen3.5".into(), no_open: false, no_think: true },
+            shared: crate::cli::SharedRunArgs {
+                provider: Provider::Ollama,
+                model: "qwen3.5".into(),
+                no_open: false,
+                no_think: true,
+            },
         });
 
         // RunOptions lifetime/fields compile from review module
-        let _opts = RunOptions { provider: "ollama", model: "model", no_open: true, no_think: false };
+        let _opts = RunOptions {
+            provider: "ollama",
+            model: "model",
+            no_open: true,
+            no_think: false,
+        };
 
         // Touch other modules to ensure they resolve (no calls to external services here)
         let _ = (&html::render_review_html as *const _);

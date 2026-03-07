@@ -33,7 +33,14 @@ pub trait LlmProvider: Send + Sync {
     fn headers(&self) -> HashMap<String, String>;
 
     /// Build the HTTP request body for the API
-    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, no_think: bool) -> String;
+    fn build_request_body(
+        &self,
+        model: &str,
+        system: &str,
+        user: &str,
+        stream: bool,
+        no_think: bool,
+    ) -> String;
 
     /// Extract content from a streaming JSON line
     fn extract_content(&self, line: &str) -> Option<String>;
@@ -51,7 +58,10 @@ pub fn create_provider(name: &str) -> Result<Box<dyn LlmProvider>> {
             let api_key = env::var("ANTHROPIC_API_KEY").context("ANTHROPIC_API_KEY not set")?;
             Ok(Box::new(AnthropicProvider::new(api_key)))
         }
-        _ => bail!("Unknown provider: {}. Use: ollama, openai, or anthropic", name),
+        _ => bail!(
+            "Unknown provider: {}. Use: ollama, openai, or anthropic",
+            name
+        ),
     }
 }
 
@@ -92,7 +102,12 @@ pub async fn stream_response<P: LlmProvider + ?Sized>(
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        bail!("Provider '{}' returned HTTP {}: {}", provider.name(), status, body);
+        bail!(
+            "Provider '{}' returned HTTP {}: {}",
+            provider.name(),
+            status,
+            body
+        );
     }
 
     let mut stream = response.bytes_stream();
