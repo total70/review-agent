@@ -1,8 +1,7 @@
 use crate::html::render_review_html;
-use crate::ollama::{ensure_ollama_running, stream_review};
+use crate::providers::{create_provider, stream_response};
 use anyhow::{Context, Result};
 use chrono::Local;
-use reqwest::Client;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -11,6 +10,7 @@ use walkdir::WalkDir;
 use zip::read::ZipArchive;
 
 pub struct RunOptions<'a> {
+    pub provider: &'a str,
     pub model: &'a str,
     pub no_open: bool,
     pub no_think: bool,
@@ -32,10 +32,12 @@ pub async fn run_review(input: &Path, options: &RunOptions<'_>) -> Result<PathBu
     })?;
     let user_prompt = build_user_prompt(&prepared.root, &summary)?;
 
-    let client = Client::new();
-    ensure_ollama_running(&client).await?;
-    let review = stream_review(
-        &client,
+    // Create provider and stream response
+    let provider = create_provider(options.provider)
+        .with_context(|| format!("Failed to create provider: {}", options.provider))?;
+    
+    let review = stream_response(
+        provider.as_ref(),
         options.model,
         &system_prompt,
         &user_prompt,

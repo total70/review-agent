@@ -29,10 +29,15 @@ pub struct PackCommand {
 
 #[derive(Debug, Args, Clone)]
 pub struct SharedRunArgs {
+    #[arg(long, default_value = "ollama")]
+    pub provider: String,
+    
     #[arg(long, default_value = "qwen3.5")]
     pub model: String,
+    
     #[arg(long)]
     pub no_open: bool,
+    
     #[arg(long)]
     pub no_think: bool,
 }
@@ -71,6 +76,7 @@ mod tests {
         let cli = parse(&["run", "input.zip"]).expect("should parse");
         match cli.command {
             Commands::Run(run) => {
+                assert_eq!(run.shared.provider, "ollama");
                 assert_eq!(run.shared.model, "qwen3.5");
                 assert_eq!(run.shared.no_open, false);
                 assert_eq!(run.shared.no_think, false);
@@ -111,6 +117,7 @@ mod tests {
         match cli.command {
             Commands::Review(review) => {
                 assert!(review.base_branch.is_none());
+                assert_eq!(review.shared.provider, "ollama");
                 assert_eq!(review.shared.model, "qwen3.5");
                 assert!(!review.shared.no_open);
                 assert!(!review.shared.no_think);
