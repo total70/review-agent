@@ -1,7 +1,7 @@
 mod cli;
 mod html;
-mod ollama;
 mod pack;
+mod providers;
 mod review;
 
 use anyhow::Result;
@@ -23,6 +23,7 @@ async fn main() -> Result<()> {
         }
         Commands::Run(command) => {
             let options = RunOptions {
+                provider: command.shared.provider.as_str(),
                 model: &command.shared.model,
                 no_open: command.shared.no_open,
                 no_think: command.shared.no_think,
@@ -32,6 +33,7 @@ async fn main() -> Result<()> {
         Commands::Review(command) => {
             let packed = pack::run_pack(command.base_branch.as_deref(), None, &command.template)?;
             let options = RunOptions {
+                provider: command.shared.provider.as_str(),
                 model: &command.shared.model,
                 no_open: command.shared.no_open,
                 no_think: command.shared.no_think,
@@ -52,28 +54,58 @@ mod tests {
 
     #[test]
     fn modules_compile_and_types_are_accessible() {
+        use crate::cli::Provider;
         // Ability to name and construct key public types proves modules are wired.
         // Cli/Commands from cli, RunOptions from review.
-        let _ = Cli { command: Commands::Review(cli::ReviewCommand { base_branch: None, template: "general".into(), shared: cli::SharedRunArgs { model: "qwen3.5".into(), no_open: false, no_think: false } }) };
+        let _ = Cli {
+            command: Commands::Review(crate::cli::ReviewCommand {
+                base_branch: None,
+                template: "general".into(),
+                shared: crate::cli::SharedRunArgs {
+                    provider: Provider::Ollama,
+                    model: "qwen3.5".into(),
+                    no_open: false,
+                    no_think: false,
+                },
+            }),
+        };
 
         // Construct each command variant to ensure visibility and correct shapes.
-        let _pack = Commands::Pack(cli::PackCommand { base_branch: None, output_dir: None, template: "general".into() });
-        let _run = Commands::Run(cli::RunCommand {
-            input: std::path::PathBuf::from("/tmp/dummy.zip"),
-            shared: cli::SharedRunArgs { model: "qwen3.5".into(), no_open: true, no_think: false },
+        let _pack = Commands::Pack(crate::cli::PackCommand {
+            base_branch: None,
+            output_dir: None,
+            template: "general".into(),
         });
-        let _review = Commands::Review(cli::ReviewCommand {
+        let _run = Commands::Run(crate::cli::RunCommand {
+            input: std::path::PathBuf::from("/tmp/dummy.zip"),
+            shared: crate::cli::SharedRunArgs {
+                provider: Provider::Ollama,
+                model: "qwen3.5".into(),
+                no_open: true,
+                no_think: false,
+            },
+        });
+        let _review = Commands::Review(crate::cli::ReviewCommand {
             base_branch: Some("main".into()),
             template: "rust".into(),
-            shared: cli::SharedRunArgs { model: "qwen3.5".into(), no_open: false, no_think: true },
+            shared: crate::cli::SharedRunArgs {
+                provider: Provider::Ollama,
+                model: "qwen3.5".into(),
+                no_open: false,
+                no_think: true,
+            },
         });
 
         // RunOptions lifetime/fields compile from review module
-        let _opts = RunOptions { model: "model", no_open: true, no_think: false };
+        let _opts = RunOptions {
+            provider: "ollama",
+            model: "model",
+            no_open: true,
+            no_think: false,
+        };
 
         // Touch other modules to ensure they resolve (no calls to external services here)
         let _ = (&html::render_review_html as *const _);
-        // Don't touch ollama/pack/review functions here since they shell out or use network.
         let _ = (&pack::run_pack as *const _);
         let _ = (&review::run_review as *const _);
     }

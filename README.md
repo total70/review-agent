@@ -10,8 +10,22 @@ cargo install --path .
 
 ## Prerequisites
 
-- Ollama installed locally
-- A pulled review model, for example:
+- Ollama installed locally (for local models)
+- Or API keys for cloud providers (see below)
+
+### Setting up API keys
+
+For OpenAI or Anthropic providers, set the appropriate environment variable in your `.zshrc` or `.bashrc`:
+
+```bash
+# For OpenAI
+export OPENAI_API_KEY="sk-..."
+
+# For Anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+For local Ollama, pull a model:
 
 ```bash
 ollama pull qwen3.5:27b
@@ -45,13 +59,13 @@ review-agent pack origin/main --template rust
 review-agent pack --template angular
 ```
 
-### `review-agent run <input> [--model <model>] [--no-open] [--no-think]`
+### `review-agent run <input> [--provider <provider>] [--model <model>] [--no-open] [--no-think]`
 
 Reviews an existing package directory or a `.zip` file created from one.
 
 - Reads `AGENTS.md` as the system prompt
 - Reads `summary.md` and every file under `patches/` recursively as the user prompt
-- Streams Ollama output live to stdout
+- Streams LLM output live to stdout
 - Writes `review.md`
 - Renders `review.html`
 - Opens the HTML report unless `--no-open` is set
@@ -59,22 +73,36 @@ Reviews an existing package directory or a `.zip` file created from one.
 Examples:
 
 ```bash
+# Local Ollama (default)
 review-agent run ./review-my-branch
-review-agent run ./review-my-branch.zip --model qwen3.5:27b
+review-agent run ./review-my-branch --provider ollama --model qwen3.5:27b
+
+# OpenAI
+review-agent run ./review-my-branch --provider openai --model gpt-4o
+
+# Anthropic
+review-agent run ./review-my-branch --provider anthropic --model claude-sonnet-4-6
+
+# Skip browser open
 review-agent run ./review-my-branch --no-open --no-think
 ```
 
-### `review-agent review [--base-branch <branch>] [--template <template>] [--model <model>] [--no-open] [--no-think]`
+### `review-agent review [--base-branch <branch>] [--template <template>] [--provider <provider>] [--model <model>] [--no-open] [--no-think]`
 
-Packages the current git branch first, then immediately runs the Ollama review flow on the generated folder.
+Packages the current git branch first, then immediately runs the LLM review flow on the generated folder.
 
 Examples:
 
 ```bash
+# Local Ollama (default)
 review-agent review
-review-agent review --base-branch origin/main
+review-agent review --provider ollama --model qwen3.5:27b
+
+# OpenAI
+review-agent review --provider openai --model gpt-4o
+
+# With specific base branch
 review-agent review --base-branch origin/main --template rust
-review-agent review --template angular --model qwen3.5:27b --no-open
 ```
 
 ## Template Options
@@ -89,9 +117,10 @@ The `--template` flag selects which AGENTS.md template is used for the review:
 
 ## Flags
 
-- `--model <model>`: Ollama model to use. Default: `qwen3.5`
+- `--provider <provider>`: LLM provider to use. Options: `ollama` (default), `openai`, `anthropic`
+- `--model <model>`: Model to use. Default: `qwen3.5` for Ollama
 - `--no-open`: Skip opening `review.html` in the browser
-- `--no-think`: Sends `think: false` to Ollama for faster responses
+- `--no-think`: Send `think: false` to Ollama for faster responses (ignored for OpenAI/Anthropic)
 
 ## Model Selection
 

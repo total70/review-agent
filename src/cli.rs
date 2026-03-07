@@ -1,5 +1,22 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum Provider {
+    Ollama,
+    Openai,
+    Anthropic,
+}
+
+impl Provider {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Provider::Ollama => "ollama",
+            Provider::Openai => "openai",
+            Provider::Anthropic => "anthropic",
+        }
+    }
+}
 
 #[derive(Debug, Parser)]
 #[command(
@@ -29,10 +46,15 @@ pub struct PackCommand {
 
 #[derive(Debug, Args, Clone)]
 pub struct SharedRunArgs {
+    #[arg(long, value_enum, default_value_t = Provider::Ollama)]
+    pub provider: Provider,
+
     #[arg(long, default_value = "qwen3.5")]
     pub model: String,
+
     #[arg(long)]
     pub no_open: bool,
+
     #[arg(long)]
     pub no_think: bool,
 }
@@ -71,6 +93,7 @@ mod tests {
         let cli = parse(&["run", "input.zip"]).expect("should parse");
         match cli.command {
             Commands::Run(run) => {
+                assert!(matches!(run.shared.provider, Provider::Ollama));
                 assert_eq!(run.shared.model, "qwen3.5");
                 assert_eq!(run.shared.no_open, false);
                 assert_eq!(run.shared.no_think, false);
@@ -111,6 +134,7 @@ mod tests {
         match cli.command {
             Commands::Review(review) => {
                 assert!(review.base_branch.is_none());
+                assert!(matches!(review.shared.provider, Provider::Ollama));
                 assert_eq!(review.shared.model, "qwen3.5");
                 assert!(!review.shared.no_open);
                 assert!(!review.shared.no_think);
@@ -150,7 +174,10 @@ mod tests {
         match cli.command {
             Commands::Pack(pack) => {
                 assert_eq!(pack.base_branch.as_deref(), Some("origin/main"));
-                assert_eq!(pack.output_dir.as_deref(), Some(PathBuf::from("output-dir").as_path()));
+                assert_eq!(
+                    pack.output_dir.as_deref(),
+                    Some(PathBuf::from("output-dir").as_path())
+                );
             }
             _ => panic!("expected Commands::Pack"),
         }

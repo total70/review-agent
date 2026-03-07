@@ -23,7 +23,11 @@ pub fn get_template(name: &str) -> Result<&'static str> {
     }
 }
 
-pub fn run_pack(base_branch: Option<&str>, output_dir: Option<&Path>, template: &str) -> Result<PathBuf> {
+pub fn run_pack(
+    base_branch: Option<&str>,
+    output_dir: Option<&Path>,
+    template: &str,
+) -> Result<PathBuf> {
     let current_dir = env::current_dir().context("failed to determine current directory")?;
     let git_root = git_output(&current_dir, &["rev-parse", "--show-toplevel"])?;
     let branch_name = git_output(&current_dir, &["rev-parse", "--abbrev-ref", "HEAD"])?;
@@ -101,7 +105,11 @@ mod tests {
     use tempfile::TempDir;
 
     fn has_git() -> bool {
-        Command::new("git").arg("--version").status().map(|s| s.success()).unwrap_or(false)
+        Command::new("git")
+            .arg("--version")
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
     }
 
     fn init_bare_and_clone() -> anyhow::Result<(TempDir, PathBuf)> {
@@ -111,35 +119,74 @@ mod tests {
         let work_dir = tmp.path().join("work");
 
         // git init --bare origin.git
-        Command::new("git").args(["init", "--bare", origin_dir.to_str().unwrap()]).status()?;
+        Command::new("git")
+            .args(["init", "--bare", origin_dir.to_str().unwrap()])
+            .status()?;
 
         // git clone origin.git work
         Command::new("git")
-            .args(["clone", origin_dir.to_str().unwrap(), work_dir.to_str().unwrap()])
+            .args([
+                "clone",
+                origin_dir.to_str().unwrap(),
+                work_dir.to_str().unwrap(),
+            ])
             .status()?;
 
         // Configure user
-        Command::new("git").args(["-C", work_dir.to_str().unwrap(), "config", "user.email", "tester@example.com"]).status()?;
-        Command::new("git").args(["-C", work_dir.to_str().unwrap(), "config", "user.name", "Test User"]).status()?;
+        Command::new("git")
+            .args([
+                "-C",
+                work_dir.to_str().unwrap(),
+                "config",
+                "user.email",
+                "tester@example.com",
+            ])
+            .status()?;
+        Command::new("git")
+            .args([
+                "-C",
+                work_dir.to_str().unwrap(),
+                "config",
+                "user.name",
+                "Test User",
+            ])
+            .status()?;
 
         // Ensure master branch exists
-        Command::new("git").args(["-C", work_dir.to_str().unwrap(), "checkout", "-b", "master"]).status()?;
+        Command::new("git")
+            .args(["-C", work_dir.to_str().unwrap(), "checkout", "-b", "master"])
+            .status()?;
 
         // Initial commit
         let readme = work_dir.join("README.md");
         fs::write(&readme, "hello\n")?;
-        Command::new("git").args(["-C", work_dir.to_str().unwrap(), "add", "."]).status()?;
-        Command::new("git").args(["-C", work_dir.to_str().unwrap(), "commit", "-m", "init"]).status()?;
+        Command::new("git")
+            .args(["-C", work_dir.to_str().unwrap(), "add", "."])
+            .status()?;
+        Command::new("git")
+            .args(["-C", work_dir.to_str().unwrap(), "commit", "-m", "init"])
+            .status()?;
 
         // Push to origin master and set upstream
-        Command::new("git").args(["-C", work_dir.to_str().unwrap(), "push", "-u", "origin", "master"]).status()?;
+        Command::new("git")
+            .args([
+                "-C",
+                work_dir.to_str().unwrap(),
+                "push",
+                "-u",
+                "origin",
+                "master",
+            ])
+            .status()?;
 
         Ok((tmp, work_dir))
     }
 
     #[test]
     fn test_git_output_version() -> anyhow::Result<()> {
-        if !has_git() { return Ok(()); }
+        if !has_git() {
+            return Ok(());
+        }
         let td = TempDir::new()?;
         let out = git_output(td.path(), &["--version"])?;
         assert!(out.to_lowercase().contains("git version"));
@@ -148,7 +195,9 @@ mod tests {
 
     #[test]
     fn test_git_output_in_repo_rev_parse() -> anyhow::Result<()> {
-        if !has_git() { return Ok(()); }
+        if !has_git() {
+            return Ok(());
+        }
         let (_tmp, work) = init_bare_and_clone()?;
         let short = git_output(&work, &["rev-parse", "--short", "HEAD"])?; // Should succeed and be hex
         assert!(!short.is_empty());
@@ -179,15 +228,35 @@ mod tests {
 
     #[test]
     fn test_run_pack_integration_with_origin_master() -> anyhow::Result<()> {
-        if !has_git() { return Ok(()); }
+        if !has_git() {
+            return Ok(());
+        }
         let (_tmp, work) = init_bare_and_clone()?;
 
         // Create feature branch and a change
-        Command::new("git").args(["-C", work.to_str().unwrap(), "checkout", "-b", "feature/test"]).status()?;
+        Command::new("git")
+            .args([
+                "-C",
+                work.to_str().unwrap(),
+                "checkout",
+                "-b",
+                "feature/test",
+            ])
+            .status()?;
         let src = work.join("src.txt");
         fs::write(&src, "line1\n")?;
-        Command::new("git").args(["-C", work.to_str().unwrap(), "add", "."]).status()?;
-        Command::new("git").args(["-C", work.to_str().unwrap(), "commit", "-m", "feat: add src.txt"]).status()?;
+        Command::new("git")
+            .args(["-C", work.to_str().unwrap(), "add", "."])
+            .status()?;
+        Command::new("git")
+            .args([
+                "-C",
+                work.to_str().unwrap(),
+                "commit",
+                "-m",
+                "feat: add src.txt",
+            ])
+            .status()?;
 
         // Run inside the repo directory
         let cwd_before = env::current_dir()?;
@@ -195,7 +264,9 @@ mod tests {
 
         // Output directory (absolute) inside temp
         let out_abs = work.join("out-review");
-        if out_abs.exists() { fs::remove_dir_all(&out_abs).ok(); }
+        if out_abs.exists() {
+            fs::remove_dir_all(&out_abs).ok();
+        }
         let result_path = run_pack(Some("origin/master"), Some(out_abs.as_path()), "general")?;
 
         // Restore cwd
@@ -216,15 +287,35 @@ mod tests {
 
     #[test]
     fn test_run_pack_integration_default_output_dir() -> anyhow::Result<()> {
-        if !has_git() { return Ok(()); }
+        if !has_git() {
+            return Ok(());
+        }
         let (_tmp, work) = init_bare_and_clone()?;
 
         // Make a new change on a branch
-        Command::new("git").args(["-C", work.to_str().unwrap(), "checkout", "-b", "chore/change"]).status()?;
+        Command::new("git")
+            .args([
+                "-C",
+                work.to_str().unwrap(),
+                "checkout",
+                "-b",
+                "chore/change",
+            ])
+            .status()?;
         let f = work.join("data.log");
         fs::write(&f, "x\n")?;
-        Command::new("git").args(["-C", work.to_str().unwrap(), "add", "."]).status()?;
-        Command::new("git").args(["-C", work.to_str().unwrap(), "commit", "-m", "chore: add data.log"]).status()?;
+        Command::new("git")
+            .args(["-C", work.to_str().unwrap(), "add", "."])
+            .status()?;
+        Command::new("git")
+            .args([
+                "-C",
+                work.to_str().unwrap(),
+                "commit",
+                "-m",
+                "chore: add data.log",
+            ])
+            .status()?;
 
         // Run within repo, no output_dir to use default
         let cwd_before = env::current_dir()?;
