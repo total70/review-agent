@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=helpers.sh
+source "$SCRIPT_DIR/helpers.sh"
+
+main() {
+  eval "$(setup_repo)"
+  WORK_DIR="$WORK_DIR"
+
+  # Ensure a file exists on base so deletion is detected in summary
+  repo_add_file     "$WORK_DIR" src/keep.txt "keep\n"
+  git push -q -u origin master >/dev/null 2>&1
+
+  repo_create_branch "$WORK_DIR" feature/one
+
+  # Create files and changes on the feature branch
+  repo_add_file     "$WORK_DIR" src/new.txt "hello\n"
+  repo_modify_file  "$WORK_DIR" README.md "\nmore\n"
+  repo_delete_file  "$WORK_DIR" src/keep.txt
+
+  repo_push_current "$WORK_DIR"
+
+  # Run review with explicit base and output dir
+  pushd "$WORK_DIR" >/dev/null
+  OUTDIR="review-feature-one"
+  bash "$SCRIPT_PATH" origin/master "$OUTDIR" --template=general > run.out 2>&1
+
+  # Verify directories
+  assert_dir_exists "$WORK_DIR/$OUTDIR"
+  assert_dir_exists "$WORK_DIR/$OUTDIR/patches"
+  assert_dir_exists "$WORK_DIR/$OUTDIR/files"
+
+  # Verify patches created for changed files (README.md and src/new.txt, and deletion patch for src/keep.txt is part of diff)
+  assert_file_exists "$WORK_DIR/$OUTDIR/patches/README.md.patch"
+  assert_file_exists "$WORK_DIR/$OUTDIR/patches/src/new.txt.patch"
+
+  # Deleted files should not be copied into files/, and not have a standalone patch file according to script logic (only for changed set)
+  if [[ -f "$WORK_DIR/$OUTDIR/patches/src/keep.txt.patch" ]]; then
+    echo "ASSERT WARN: unexpected deletion-specific patch file present"
+  fi
+
+  # Verify copies of existing changed files only
+  assert_file_exists "$WORK_DIR/$OUTDIR/files/README.md"
+  assert_file_exists "$WORK_DIR/$OUTDIR/files/src/new.txt"
+  [[ ! -f "$WORK_DIR/$OUTDIR/files/src/keep.txt" ]] || { echo "ASSERT FAIL: deleted file copied" >&2; exit 1; }
+
+  # Verify full.patch exists and includes markers
+  assert_file_exists "$WORK_DIR/$OUTDIR/full.patch"
+  assert_contains "$WORK_DIR/$OUTDIR/full.patch" "diff --git"
+
+  # Verify summary.md structure and content
+  assert_file_exists "$WORK_DIR/$OUTDIR/summary.md"
+  assert_contains "$WORK_DIR/$OUTDIR/summary.md" "^# Branch Review Summary$"
+  assert_contains "$WORK_DIR/$OUTDIR/summary.md" "^## Commits$"
+  assert_contains "$WORK_DIR/$OUTDIR/summary.md" "^## Changed Files$"
+  assert_contains "$WORK_DIR/$OUTDIR/summary.md" "^## Deleted Files$"
+  # Ensure our files are listed appropriately
+  assert_contains "$WORK_DIR/$OUTDIR/summary.md" "- README.md"
+  assert_contains "$WORK_DIR/$OUTDIR/summary.md" "- src/new.txt"
+  assert_contains "$WORK_DIR/$OUTDIR/summary.md" "- src/keep.txt"
+
+  # AGENTS.md for general
+  assert_file_exists "$WORK_DIR/$OUTDIR/AGENTS.md"
+  assert_contains "$WORK_DIR/$OUTDIR/AGENTS.md" "# Code Review"
+  assert_contains "$WORK_DIR/$OUTDIR/AGENTS.md" "Files Provided"
+
+  popd >/dev/null
+}
+
+main "$@"
