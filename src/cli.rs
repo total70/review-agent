@@ -49,3 +49,122 @@ pub struct ReviewCommand {
     #[command(flatten)]
     pub shared: SharedRunArgs,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    // Helper to parse a Cli from provided args (with a fake binary name)
+    fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
+        let mut full = vec!["review-agent"]; // binary name placeholder
+        full.extend_from_slice(args);
+        Cli::try_parse_from(full)
+    }
+
+    #[test]
+    fn defaults_shared_run_args_in_run() {
+        let cli = parse(&["run", "input.zip"]).expect("should parse");
+        match cli.command {
+            Commands::Run(run) => {
+                assert_eq!(run.shared.model, "qwen3.5");
+                assert_eq!(run.shared.no_open, false);
+                assert_eq!(run.shared.no_think, false);
+                assert_eq!(run.input, PathBuf::from("input.zip"));
+            }
+            _ => panic!("expected Commands::Run"),
+        }
+    }
+
+    #[test]
+    fn command_parsing_pack() {
+        let cli = parse(&["pack"]).expect("should parse pack with no args");
+        match cli.command {
+            Commands::Pack(pack) => {
+                assert!(pack.base_branch.is_none());
+                assert!(pack.output_dir.is_none());
+            }
+            _ => panic!("expected Commands::Pack"),
+        }
+    }
+
+    #[test]
+    fn command_parsing_run_with_path() {
+        let cli = parse(&["run", "./some/path.zip"]).expect("should parse run");
+        match cli.command {
+            Commands::Run(run) => {
+                assert_eq!(run.input, PathBuf::from("./some/path.zip"));
+                // defaults already asserted in other test, but double check model presence
+                assert_eq!(run.shared.model, "qwen3.5");
+            }
+            _ => panic!("expected Commands::Run"),
+        }
+    }
+
+    #[test]
+    fn command_parsing_review() {
+        let cli = parse(&["review"]).expect("should parse review with defaults");
+        match cli.command {
+            Commands::Review(review) => {
+                assert!(review.base_branch.is_none());
+                assert_eq!(review.shared.model, "qwen3.5");
+                assert!(!review.shared.no_open);
+                assert!(!review.shared.no_think);
+            }
+            _ => panic!("expected Commands::Review"),
+        }
+    }
+
+    #[test]
+    fn combined_args_run_model_input() {
+        let cli = parse(&["run", "--model", "llama3", "input.zip"]).expect("should parse");
+        match cli.command {
+            Commands::Run(run) => {
+                assert_eq!(run.shared.model, "llama3");
+                assert_eq!(run.input, PathBuf::from("input.zip"));
+            }
+            _ => panic!("expected Commands::Run"),
+        }
+    }
+
+    #[test]
+    fn combined_args_review_flags_and_base_branch() {
+        let cli = parse(&["review", "--no-open", "--base-branch", "main"]).expect("should parse");
+        match cli.command {
+            Commands::Review(review) => {
+                assert_eq!(review.base_branch.as_deref(), Some("main"));
+                assert!(review.shared.no_open);
+                assert!(!review.shared.no_think);
+            }
+            _ => panic!("expected Commands::Review"),
+        }
+    }
+
+    #[test]
+    fn combined_args_pack_with_positionals() {
+        let cli = parse(&["pack", "origin/main", "output-dir"]).expect("should parse");
+        match cli.command {
+            Commands::Pack(pack) => {
+                assert_eq!(pack.base_branch.as_deref(), Some("origin/main"));
+                assert_eq!(pack.output_dir.as_deref(), Some(PathBuf::from("output-dir").as_path()));
+            }
+            _ => panic!("expected Commands::Pack"),
+        }
+    }
+
+    #[test]
+    fn edge_case_invalid_subcommand_fails() {
+        let err = parse(&["frobnicate"]).expect_err("invalid subcommand should error");
+        // clap error kind contains useful info, but just ensure it's an error
+        let msg = err.to_string();
+        assert!(msg.contains("error") || msg.contains("Usage"));
+    }
+
+    #[test]
+    fn edge_case_missing_required_args_run_input() {
+        let err = parse(&["run"]).expect_err("missing input should error");
+        let msg = err.to_string();
+        // Clap error for missing required arg - be flexible about message content
+        assert!(!msg.is_empty(), "should have an error message");
+    }
+}

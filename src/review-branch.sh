@@ -93,7 +93,8 @@ if [[ -n "$CHANGED_FILES" ]]; then
 
     # Copy full file
     if [[ -f "$file" ]]; then
-      install -D "$file" "$OUTPUT_DIR/files/$file"
+      mkdir -p "$OUTPUT_DIR/files/$(dirname "$file")"
+      cp "$file" "$OUTPUT_DIR/files/$file"
       FILE_COUNT=$((FILE_COUNT + 1))
     fi
   done <<< "$CHANGED_FILES"
