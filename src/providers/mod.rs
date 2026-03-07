@@ -14,6 +14,7 @@ pub use ollama::OllamaProvider;
 pub use openai::OpenAIProvider;
 
 /// Messages for LLM API requests
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub role: String,
@@ -36,11 +37,6 @@ pub trait LlmProvider: Send + Sync {
 
     /// Extract content from a streaming JSON line
     fn extract_content(&self, line: &str) -> Option<String>;
-
-    /// Whether this provider supports streaming
-    fn supports_stream(&self) -> bool {
-        true
-    }
 }
 
 /// Create a provider from a string name

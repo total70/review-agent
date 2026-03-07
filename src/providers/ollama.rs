@@ -39,7 +39,9 @@ impl LlmProvider for OllamaProvider {
     }
 
     fn headers(&self) -> HashMap<String, String> {
-        HashMap::new()
+        let mut h = HashMap::new();
+        h.insert("Content-Type".to_string(), "application/json".to_string());
+        h
     }
 
     fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, no_think: bool) -> String {

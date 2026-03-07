@@ -58,25 +58,14 @@ impl LlmProvider for AnthropicProvider {
     }
 
     fn extract_content(&self, line: &str) -> Option<String> {
-        // Skip empty lines and "[DONE]"
         let line = line.trim();
         if line.is_empty() || line == "data: [DONE]" {
             return None;
         }
-
-        // Remove "data: " prefix if present
         let json = line.strip_prefix("data: ")?;
-
-        // Parse JSON
         let value: serde_json::Value = serde_json::from_str(json).ok()?;
-
-        // Extract content from streaming delta (content_block_delta) or regular content_block
-        // Streaming format: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
-        // Non-streaming format: {"type":"content_block","index":0,"content_block":{"type":"text","text":"Hello"}}
-        value["delta"]["text"]
-            .as_str()
-            .map(String::from)
-            .or_else(|| value["content_block"]["text"].as_str().map(String::from))
+        // Only streaming delta events carry text
+        value["delta"]["text"].as_str().map(String::from)
     }
 }
 
@@ -106,14 +95,8 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_content_valid() {
+    fn test_extract_content_valid_streaming_only() {
         let provider = AnthropicProvider::new("sk-ant-test".to_string());
-        
-        // Non-streaming format
-        let line = r#"data: {"type":"content_block","index":0,"content_block":{"type":"text","text":"Hello"}}"#;
-        let content = provider.extract_content(line);
-        assert_eq!(content, Some("Hello".to_string()));
-        
         // Streaming format (content_block_delta)
         let line2 = r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"World"}}"#;
         let content2 = provider.extract_content(line2);
