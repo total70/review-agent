@@ -31,7 +31,7 @@ Ollama is not running. Start it with: ollama serve
 
 ## Usage
 
-### `review-agent pack [base-branch] [output-dir]`
+### `review-agent pack [base-branch] [output-dir] [--template <template>]`
 
 Runs the bundled shell workflow against the git repo in your current working directory.
 
@@ -41,6 +41,8 @@ Examples:
 review-agent pack
 review-agent pack origin/main
 review-agent pack origin/main /tmp/review-my-branch
+review-agent pack origin/main --template rust
+review-agent pack --template angular
 ```
 
 ### `review-agent run <input> [--model <model>] [--no-open] [--no-think]`
@@ -62,7 +64,7 @@ review-agent run ./review-my-branch.zip --model qwen3.5:27b
 review-agent run ./review-my-branch --no-open --no-think
 ```
 
-### `review-agent review [--base-branch <branch>] [--model <model>] [--no-open] [--no-think]`
+### `review-agent review [--base-branch <branch>] [--template <template>] [--model <model>] [--no-open] [--no-think]`
 
 Packages the current git branch first, then immediately runs the Ollama review flow on the generated folder.
 
@@ -71,8 +73,19 @@ Examples:
 ```bash
 review-agent review
 review-agent review --base-branch origin/main
-review-agent review --base-branch origin/main --model qwen3.5:27b --no-open
+review-agent review --base-branch origin/main --template rust
+review-agent review --template angular --model qwen3.5:27b --no-open
 ```
+
+## Template Options
+
+The `--template` flag selects which AGENTS.md template is used for the review:
+
+| Template | Description |
+|----------|-------------|
+| `general` | Generic code review guidelines (default) |
+| `rust` | Rust-specific best practices and patterns |
+| `angular` | Angular/TypeScript best practices |
 
 ## Flags
 

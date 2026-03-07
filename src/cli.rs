@@ -23,6 +23,8 @@ pub enum Commands {
 pub struct PackCommand {
     pub base_branch: Option<String>,
     pub output_dir: Option<PathBuf>,
+    #[arg(long, default_value = "general")]
+    pub template: String,
 }
 
 #[derive(Debug, Args, Clone)]
@@ -46,6 +48,8 @@ pub struct RunCommand {
 pub struct ReviewCommand {
     #[arg(long)]
     pub base_branch: Option<String>,
+    #[arg(long, default_value = "general")]
+    pub template: String,
     #[command(flatten)]
     pub shared: SharedRunArgs,
 }

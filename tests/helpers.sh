@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SCRIPT_PATH="$REPO_ROOT/src/review-branch.sh"
+SCRIPT_PATH="$REPO_ROOT/scripts/review-branch.sh"
 
 # Create shim tools to normalize behavior across macOS/Linux (e.g., install -D)
 _setup_shims() {

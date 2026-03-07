@@ -5,9 +5,25 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const REVIEW_BRANCH_SCRIPT: &str = include_str!("review-branch.sh");
+// Embed the script from scripts/ folder instead of src/
+const REVIEW_BRANCH_SCRIPT: &str = include_str!("../scripts/review-branch.sh");
 
-pub fn run_pack(base_branch: Option<&str>, output_dir: Option<&Path>) -> Result<PathBuf> {
+// Embed the agent templates
+const TEMPLATE_GENERAL: &str = include_str!("../templates/agents/general.md");
+const TEMPLATE_RUST: &str = include_str!("../templates/agents/rust.md");
+const TEMPLATE_ANGULAR: &str = include_str!("../templates/agents/angular.md");
+
+/// Get template content by name
+pub fn get_template(name: &str) -> Result<&'static str> {
+    match name {
+        "general" => Ok(TEMPLATE_GENERAL),
+        "rust" => Ok(TEMPLATE_RUST),
+        "angular" => Ok(TEMPLATE_ANGULAR),
+        _ => bail!("unknown template: {}", name),
+    }
+}
+
+pub fn run_pack(base_branch: Option<&str>, output_dir: Option<&Path>, template: &str) -> Result<PathBuf> {
     let current_dir = env::current_dir().context("failed to determine current directory")?;
     let git_root = git_output(&current_dir, &["rev-parse", "--show-toplevel"])?;
     let branch_name = git_output(&current_dir, &["rev-parse", "--abbrev-ref", "HEAD"])?;
@@ -36,6 +52,12 @@ pub fn run_pack(base_branch: Option<&str>, output_dir: Option<&Path>) -> Result<
         Some(path) => PathBuf::from(&git_root).join(path),
         None => PathBuf::from(&git_root).join(format!("review-{branch_name}")),
     };
+
+    // Copy the selected template to AGENTS.md in output directory
+    let agents_path = resolved_output.join("AGENTS.md");
+    let template_content = get_template(template)?;
+    fs::write(&agents_path, template_content)
+        .with_context(|| format!("failed to write AGENTS.md to {}", agents_path.display()))?;
 
     println!("{}", resolved_output.display());
     Ok(resolved_output)
@@ -174,7 +196,7 @@ mod tests {
         // Output directory (absolute) inside temp
         let out_abs = work.join("out-review");
         if out_abs.exists() { fs::remove_dir_all(&out_abs).ok(); }
-        let result_path = run_pack(Some("origin/master"), Some(out_abs.as_path()))?;
+        let result_path = run_pack(Some("origin/master"), Some(out_abs.as_path()), "general")?;
 
         // Restore cwd
         env::set_current_dir(cwd_before)?;
@@ -208,7 +230,7 @@ mod tests {
         let cwd_before = env::current_dir()?;
         env::set_current_dir(&work)?;
 
-        let out_path = run_pack(Some("origin/master"), None)?;
+        let out_path = run_pack(Some("origin/master"), None, "general")?;
 
         env::set_current_dir(cwd_before)?;
 

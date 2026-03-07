@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BINARY="$REPO_ROOT/target/debug/review-agent"
 # shellcheck source=helpers.sh
 source "$SCRIPT_DIR/helpers.sh"
 
@@ -17,14 +19,14 @@ main() {
 
   # rust template
   OUT1="review-feature-agents-rust"
-  bash "$SCRIPT_PATH" origin/master "$OUT1" --template=rust > /dev/null 2>&1
+  "$BINARY" pack origin/master "$OUT1" --template rust > /dev/null 2>&1
   assert_file_exists "$WORK_DIR/$OUT1/AGENTS.md"
   assert_contains "$WORK_DIR/$OUT1/AGENTS.md" "# Rust Code Review"
   assert_contains "$WORK_DIR/$OUT1/AGENTS.md" "Rust Best Practices Checklist"
 
   # angular template
   OUT2="review-feature-agents-angular"
-  bash "$SCRIPT_PATH" origin/master "$OUT2" --template=angular > /dev/null 2>&1
+  "$BINARY" pack origin/master "$OUT2" --template angular > /dev/null 2>&1
   assert_file_exists "$WORK_DIR/$OUT2/AGENTS.md"
   assert_contains "$WORK_DIR/$OUT2/AGENTS.md" "# Angular Code Review"
   assert_contains "$WORK_DIR/$OUT2/AGENTS.md" "Angular Best Practices Checklist"

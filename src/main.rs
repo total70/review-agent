@@ -18,6 +18,7 @@ async fn main() -> Result<()> {
             pack::run_pack(
                 command.base_branch.as_deref(),
                 command.output_dir.as_deref(),
+                &command.template,
             )?;
         }
         Commands::Run(command) => {
@@ -29,7 +30,7 @@ async fn main() -> Result<()> {
             review::run_review(&command.input, &options).await?;
         }
         Commands::Review(command) => {
-            let packed = pack::run_pack(command.base_branch.as_deref(), None)?;
+            let packed = pack::run_pack(command.base_branch.as_deref(), None, &command.template)?;
             let options = RunOptions {
                 model: &command.shared.model,
                 no_open: command.shared.no_open,
@@ -53,16 +54,17 @@ mod tests {
     fn modules_compile_and_types_are_accessible() {
         // Ability to name and construct key public types proves modules are wired.
         // Cli/Commands from cli, RunOptions from review.
-        let _ = Cli { command: Commands::Review(cli::ReviewCommand { base_branch: None, shared: cli::SharedRunArgs { model: "qwen3.5".into(), no_open: false, no_think: false } }) };
+        let _ = Cli { command: Commands::Review(cli::ReviewCommand { base_branch: None, template: "general".into(), shared: cli::SharedRunArgs { model: "qwen3.5".into(), no_open: false, no_think: false } }) };
 
         // Construct each command variant to ensure visibility and correct shapes.
-        let _pack = Commands::Pack(cli::PackCommand { base_branch: None, output_dir: None });
+        let _pack = Commands::Pack(cli::PackCommand { base_branch: None, output_dir: None, template: "general".into() });
         let _run = Commands::Run(cli::RunCommand {
             input: std::path::PathBuf::from("/tmp/dummy.zip"),
             shared: cli::SharedRunArgs { model: "qwen3.5".into(), no_open: true, no_think: false },
         });
         let _review = Commands::Review(cli::ReviewCommand {
             base_branch: Some("main".into()),
+            template: "rust".into(),
             shared: cli::SharedRunArgs { model: "qwen3.5".into(), no_open: false, no_think: true },
         });
 
