@@ -43,7 +43,6 @@ impl LlmProvider for AnthropicProvider {
 
     fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, _no_think: bool) -> String {
         // Pass model through unchanged; users must supply valid Anthropic model IDs
-        let model = model;
 
         serde_json::json!({
             "model": model,
