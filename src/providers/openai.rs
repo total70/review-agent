@@ -37,7 +37,7 @@ impl LlmProvider for OpenAIProvider {
         headers
     }
 
-    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool) -> String {
+    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, _no_think: bool) -> String {
         serde_json::json!({
             "model": model,
             "messages": [
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn test_build_request_body() {
         let provider = OpenAIProvider::new("sk-test".to_string());
-        let body = provider.build_request_body("gpt-4o", "You are helpful.", "Hi", true);
+        let body = provider.build_request_body("gpt-4o", "You are helpful.", "Hi", true, false);
         assert!(body.contains("gpt-4o"));
         assert!(body.contains("You are helpful."));
     }

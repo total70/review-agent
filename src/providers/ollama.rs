@@ -42,34 +42,34 @@ impl LlmProvider for OllamaProvider {
         HashMap::new()
     }
 
-    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool) -> String {
+    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, no_think: bool) -> String {
         let model_name = model.split(':').next().unwrap_or(model);
-        serde_json::json!({
+        let mut body = serde_json::json!({
             "model": model_name,
             "messages": [
                 { "role": "system", "content": system },
                 { "role": "user", "content": user }
             ],
-            "stream": stream,
-            "think": false
-        })
-        .to_string()
+            "stream": stream
+        });
+        // Only set think: false when no_think is requested; otherwise omit to allow model defaults
+        if no_think {
+            if let Some(map) = body.as_object_mut() {
+                map.insert("think".to_string(), serde_json::json!(false));
+            }
+        }
+        body.to_string()
     }
 
     fn extract_content(&self, line: &str) -> Option<String> {
-        // Skip empty lines and "[DONE]"
         let line = line.trim();
-        if line.is_empty() || line == "data: [DONE]" {
+        if line.is_empty() {
             return None;
         }
-
-        // Remove "data: " prefix if present
-        let json = line.strip_prefix("data: ")?;
-
-        // Parse JSON
-        let value: serde_json::Value = serde_json::from_str(json).ok()?;
-
-        // Extract content from message
+        let value: serde_json::Value = serde_json::from_str(line).ok()?;
+        if value["done"].as_bool().unwrap_or(false) {
+            return None;
+        }
         value["message"]["content"].as_str().map(String::from)
     }
 }
@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn test_extract_content_valid() {
         let provider = OllamaProvider::new();
-        let line = r#"data: {"message":{"content":"Hello"},"done":false}"#;
+        let line = r#"{"message":{"content":"Hello"},"done":false}"#;
         let content = provider.extract_content(line);
         assert_eq!(content, Some("Hello".to_string()));
     }
@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn test_extract_content_done() {
         let provider = OllamaProvider::new();
-        let line = "data: [DONE]";
+        let line = r#"{"done":true}"#;
         let content = provider.extract_content(line);
         assert!(content.is_none());
     }
@@ -117,9 +117,13 @@ mod tests {
     #[test]
     fn test_build_request_body() {
         let provider = OllamaProvider::new();
-        let body = provider.build_request_body("qwen3.5", "You are a helpful assistant.", "Hello", true);
+        let body = provider.build_request_body("qwen3.5", "You are a helpful assistant.", "Hello", true, true);
         assert!(body.contains("qwen3.5"));
         assert!(body.contains("You are a helpful assistant."));
         assert!(body.contains("Hello"));
+        assert!(body.contains("\"think\":false"));
+        // when no_think is false, omit think
+        let body2 = provider.build_request_body("qwen3.5", "sys", "Hi", true, false);
+        assert!(!body2.contains("\"think\""));
     }
 }

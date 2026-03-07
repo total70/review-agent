@@ -38,15 +38,15 @@ impl LlmProvider for AnthropicProvider {
         headers
     }
 
-    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool) -> String {
+    fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, _no_think: bool) -> String {
         // Map common model names to full Anthropic model names
         let model = match model {
-            "claude-sonnet-4-6" | "sonnet" => "claude-sonnet-4-6-20250514",
-            "claude-opus-4-5" | "opus" => "claude-opus-4-5-20250514",
-            "claude-3-5-sonnet" => "claude-3-5-sonnet-20241022",
-            "claude-3-opus" => "claude-3-opus-20240229",
-            "claude-3-sonnet" => "claude-3-sonnet-20240229",
-            "claude-3-haiku" => "claude-3-haiku-20240307",
+            "claude-sonnet-4-6" | "sonnet" => "claude-sonnet-4-6",
+            "claude-opus-4-6" | "opus" => "claude-opus-4-6",
+            "claude-3-5-sonnet" => "claude-sonnet-4-5-20250929",
+            "claude-3-opus" => "claude-opus-4-1-20250805",
+            "claude-3-sonnet" => "claude-sonnet-4-5-20250929",
+            "claude-3-haiku" => "claude-haiku-4-5-20251001",
             m => m,
         };
 
@@ -75,8 +75,13 @@ impl LlmProvider for AnthropicProvider {
         // Parse JSON
         let value: serde_json::Value = serde_json::from_str(json).ok()?;
 
-        // Extract content from content_block (streaming response)
-        value["content_block"]["text"].as_str().map(String::from)
+        // Extract content from streaming delta (content_block_delta) or regular content_block
+        // Streaming format: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
+        // Non-streaming format: {"type":"content_block","index":0,"content_block":{"type":"text","text":"Hello"}}
+        value["delta"]["text"]
+            .as_str()
+            .map(String::from)
+            .or_else(|| value["content_block"]["text"].as_str().map(String::from))
     }
 }
 
@@ -108,9 +113,16 @@ mod tests {
     #[test]
     fn test_extract_content_valid() {
         let provider = AnthropicProvider::new("sk-ant-test".to_string());
+        
+        // Non-streaming format
         let line = r#"data: {"type":"content_block","index":0,"content_block":{"type":"text","text":"Hello"}}"#;
         let content = provider.extract_content(line);
         assert_eq!(content, Some("Hello".to_string()));
+        
+        // Streaming format (content_block_delta)
+        let line2 = r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"World"}}"#;
+        let content2 = provider.extract_content(line2);
+        assert_eq!(content2, Some("World".to_string()));
     }
 
     #[test]
@@ -124,8 +136,8 @@ mod tests {
     #[test]
     fn test_build_request_body() {
         let provider = AnthropicProvider::new("sk-ant-test".to_string());
-        let body = provider.build_request_body("claude-sonnet-4-6", "You are helpful.", "Hi", true);
-        assert!(body.contains("claude-sonnet-4-6-20250514"));
+        let body = provider.build_request_body("claude-sonnet-4-6", "You are helpful.", "Hi", true, false);
+        assert!(body.contains("claude-sonnet-4-6"));
         assert!(body.contains("You are helpful."));
     }
 
@@ -134,7 +146,7 @@ mod tests {
         let provider = AnthropicProvider::new("sk-ant-test".to_string());
         
         // Test sonnet mapping
-        let body = provider.build_request_body("sonnet", "sys", "user", true);
+        let body = provider.build_request_body("sonnet", "sys", "user", true, false);
         assert!(body.contains("claude-sonnet"));
     }
 }
