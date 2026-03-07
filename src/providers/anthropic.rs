@@ -8,7 +8,7 @@ pub struct AnthropicProvider {
 }
 
 /// Default max tokens for Anthropic requests
-const DEFAULT_MAX_TOKENS: u32 = 4096;
+const DEFAULT_MAX_TOKENS: u32 = 8192;
 
 impl AnthropicProvider {
     pub fn new(api_key: String) -> Self {
@@ -42,16 +42,8 @@ impl LlmProvider for AnthropicProvider {
     }
 
     fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, _no_think: bool) -> String {
-        // Map common model names to full Anthropic model names
-        let model = match model {
-            "claude-sonnet-4-6" | "sonnet" => "claude-sonnet-4-6",
-            "claude-opus-4-6" | "opus" => "claude-opus-4-6",
-            "claude-3-5-sonnet" => "claude-sonnet-4-5-20250929",
-            "claude-3-opus" => "claude-opus-4-1-20250805",
-            "claude-3-sonnet" => "claude-sonnet-4-5-20250929",
-            "claude-3-haiku" => "claude-haiku-4-5-20251001",
-            m => m,
-        };
+        // Pass model through unchanged; users must supply valid Anthropic model IDs
+        let model = model;
 
         serde_json::json!({
             "model": model,
@@ -142,14 +134,5 @@ mod tests {
         let body = provider.build_request_body("claude-sonnet-4-6", "You are helpful.", "Hi", true, false);
         assert!(body.contains("claude-sonnet-4-6"));
         assert!(body.contains("You are helpful."));
-    }
-
-    #[test]
-    fn test_model_mapping() {
-        let provider = AnthropicProvider::new("sk-ant-test".to_string());
-        
-        // Test sonnet mapping
-        let body = provider.build_request_body("sonnet", "sys", "user", true, false);
-        assert!(body.contains("claude-sonnet"));
     }
 }

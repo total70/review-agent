@@ -43,7 +43,7 @@ impl LlmProvider for OllamaProvider {
     }
 
     fn build_request_body(&self, model: &str, system: &str, user: &str, stream: bool, no_think: bool) -> String {
-        let model_name = model.split(':').next().unwrap_or(model);
+        let model_name = model; // use model directly; don't strip tags
         let mut body = serde_json::json!({
             "model": model_name,
             "messages": [

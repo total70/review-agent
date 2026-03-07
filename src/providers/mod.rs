@@ -67,18 +67,21 @@ pub async fn stream_response<P: LlmProvider + ?Sized>(
     user_prompt: &str,
     no_think: bool,
 ) -> Result<String> {
+    use std::io::Write;
+
     let client = Client::new();
 
     let body = provider.build_request_body(model, system_prompt, user_prompt, true, no_think);
 
     let mut headers = reqwest::header::HeaderMap::new();
     for (key, value) in provider.headers() {
-        if let (Ok(name), Ok(val)) = (
-            key.parse::<reqwest::header::HeaderName>(),
-            value.parse::<reqwest::header::HeaderValue>(),
-        ) {
-            headers.insert(name, val);
-        }
+        let name = key
+            .parse::<reqwest::header::HeaderName>()
+            .with_context(|| format!("Invalid header name: {key}"))?;
+        let val = value
+            .parse::<reqwest::header::HeaderValue>()
+            .with_context(|| format!("Invalid header value for {key}"))?;
+        headers.insert(name, val);
     }
 
     let response = client
@@ -109,6 +112,7 @@ pub async fn stream_response<P: LlmProvider + ?Sized>(
             buffer.drain(..=pos);
             if let Some(content) = provider.extract_content(&line) {
                 print!("{}", content);
+                let _ = std::io::stdout().flush();
                 full_response.push_str(&content);
             }
         }
@@ -116,6 +120,7 @@ pub async fn stream_response<P: LlmProvider + ?Sized>(
     // flush remaining buffer
     if let Some(content) = provider.extract_content(&buffer) {
         print!("{}", content);
+        let _ = std::io::stdout().flush();
         full_response.push_str(&content);
     }
 
