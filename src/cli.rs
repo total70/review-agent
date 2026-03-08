@@ -42,6 +42,9 @@ pub struct PackCommand {
     pub output_dir: Option<PathBuf>,
     #[arg(long, default_value = "general")]
     pub template: String,
+    /// Review working tree changes without creating a temporary branch
+    #[arg(long, default_value_t = false)]
+    pub uncommitted: bool,
 }
 
 #[derive(Debug, Args, Clone)]
@@ -51,6 +54,10 @@ pub struct SharedRunArgs {
 
     #[arg(long, default_value = "qwen3.5")]
     pub model: String,
+
+    /// Override the Ollama host (e.g. 192.168.1.100:11434)
+    #[arg(long)]
+    pub host: Option<String>,
 
     #[arg(long)]
     pub no_open: bool,
@@ -95,6 +102,7 @@ mod tests {
             Commands::Run(run) => {
                 assert!(matches!(run.shared.provider, Provider::Ollama));
                 assert_eq!(run.shared.model, "qwen3.5");
+                assert_eq!(run.shared.host, None);
                 assert_eq!(run.shared.no_open, false);
                 assert_eq!(run.shared.no_think, false);
                 assert_eq!(run.input, PathBuf::from("input.zip"));
@@ -110,6 +118,7 @@ mod tests {
             Commands::Pack(pack) => {
                 assert!(pack.base_branch.is_none());
                 assert!(pack.output_dir.is_none());
+                assert!(!pack.uncommitted);
             }
             _ => panic!("expected Commands::Pack"),
         }
@@ -149,6 +158,7 @@ mod tests {
         match cli.command {
             Commands::Run(run) => {
                 assert_eq!(run.shared.model, "llama3");
+                assert_eq!(run.shared.host, None);
                 assert_eq!(run.input, PathBuf::from("input.zip"));
             }
             _ => panic!("expected Commands::Run"),
@@ -161,6 +171,7 @@ mod tests {
         match cli.command {
             Commands::Review(review) => {
                 assert_eq!(review.base_branch.as_deref(), Some("main"));
+                assert_eq!(review.shared.host, None);
                 assert!(review.shared.no_open);
                 assert!(!review.shared.no_think);
             }
@@ -178,6 +189,27 @@ mod tests {
                     pack.output_dir.as_deref(),
                     Some(PathBuf::from("output-dir").as_path())
                 );
+                assert!(!pack.uncommitted);
+            }
+            _ => panic!("expected Commands::Pack"),
+        }
+    }
+
+    #[test]
+    fn combined_args_pack_with_uncommitted_flag() {
+        let cli = parse(&[
+            "pack",
+            "origin/main",
+            "--template",
+            "general",
+            "--uncommitted",
+        ])
+        .expect("should parse");
+        match cli.command {
+            Commands::Pack(pack) => {
+                assert_eq!(pack.base_branch.as_deref(), Some("origin/main"));
+                assert_eq!(pack.template, "general");
+                assert!(pack.uncommitted);
             }
             _ => panic!("expected Commands::Pack"),
         }
@@ -197,5 +229,32 @@ mod tests {
         let msg = err.to_string();
         // Clap error for missing required arg - be flexible about message content
         assert!(!msg.is_empty(), "should have an error message");
+    }
+
+    #[test]
+    fn host_flag_parses_for_run() {
+        let cli =
+            parse(&["run", "--host", "192.168.1.100:11434", "input.zip"]).expect("should parse");
+        match cli.command {
+            Commands::Run(run) => {
+                assert_eq!(run.shared.host.as_deref(), Some("192.168.1.100:11434"));
+                assert_eq!(run.input, PathBuf::from("input.zip"));
+            }
+            _ => panic!("expected Commands::Run"),
+        }
+    }
+
+    #[test]
+    fn host_flag_parses_for_review() {
+        let cli = parse(&["review", "--host", "https://ollama.example"]).expect("should parse");
+        match cli.command {
+            Commands::Review(review) => {
+                assert_eq!(
+                    review.shared.host.as_deref(),
+                    Some("https://ollama.example")
+                );
+            }
+            _ => panic!("expected Commands::Review"),
+        }
     }
 }

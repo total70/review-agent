@@ -45,7 +45,7 @@ Ollama is not running. Start it with: ollama serve
 
 ## Usage
 
-### `review-agent pack [base-branch] [output-dir] [--template <template>]`
+### `review-agent pack [base-branch] [output-dir] [--template <template>] [--uncommitted]`
 
 Runs the bundled shell workflow against the git repo in your current working directory.
 
@@ -57,9 +57,10 @@ review-agent pack origin/main
 review-agent pack origin/main /tmp/review-my-branch
 review-agent pack origin/main --template rust
 review-agent pack --template angular
+review-agent pack origin/main /Users/t/projects/R/review-agent/review-feat/uncommitted-review --uncommitted
 ```
 
-### `review-agent run <input> [--provider <provider>] [--model <model>] [--no-open] [--no-think]`
+### `review-agent run <input> [--provider <provider>] [--model <model>] [--host <host>] [--no-open] [--no-think]`
 
 Reviews an existing package directory or a `.zip` file created from one.
 
@@ -76,18 +77,16 @@ Examples:
 # Local Ollama (default)
 review-agent run ./review-my-branch
 review-agent run ./review-my-branch --provider ollama --model qwen3.5:27b
+review-agent run ./review-my-branch --host 192.168.1.100:11434
 
 # OpenAI
 review-agent run ./review-my-branch --provider openai --model gpt-4o
 
 # Anthropic
 review-agent run ./review-my-branch --provider anthropic --model claude-sonnet-4-6
-
-# Skip browser open
-review-agent run ./review-my-branch --no-open --no-think
 ```
 
-### `review-agent review [--base-branch <branch>] [--template <template>] [--provider <provider>] [--model <model>] [--no-open] [--no-think]`
+### `review-agent review [--base-branch <branch>] [--template <template>] [--provider <provider>] [--model <model>] [--host <host>] [--no-open] [--no-think]`
 
 Packages the current git branch first, then immediately runs the LLM review flow on the generated folder.
 
@@ -97,6 +96,7 @@ Examples:
 # Local Ollama (default)
 review-agent review
 review-agent review --provider ollama --model qwen3.5:27b
+review-agent review --host https://ollama.example
 
 # OpenAI
 review-agent review --provider openai --model gpt-4o
@@ -117,10 +117,14 @@ The `--template` flag selects which AGENTS.md template is used for the review:
 
 ## Flags
 
-- `--provider <provider>`: LLM provider to use. Options: `ollama` (default), `openai`, `anthropic`
-- `--model <model>`: Model to use. Default: `qwen3.5` for Ollama
-- `--no-open`: Skip opening `review.html` in the browser
-- `--no-think`: Send `think: false` to Ollama for faster responses (ignored for OpenAI/Anthropic)
+| Flag | Description |
+|------|-------------|
+| `--provider <provider>` | LLM provider to use. Options: `ollama` (default), `openai`, `anthropic` |
+| `--model <model>` | Model to use. Default: `qwen3.5` for Ollama |
+| `--host <host>` | Optional Ollama server address to use instead of localhost, for example `192.168.1.100:11434` or `https://ollama.example` |
+| `--uncommitted` | Review working tree changes without creating a temporary branch |
+| `--no-open` | Skip opening `review.html` in the browser |
+| `--no-think` | Send `think: false` to Ollama for faster responses (ignored for OpenAI/Anthropic) |
 
 ## Model Selection
 

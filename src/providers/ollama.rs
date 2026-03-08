@@ -8,16 +8,28 @@ pub struct OllamaProvider {
 }
 
 impl OllamaProvider {
-    pub fn new() -> Self {
-        let base_url = std::env::var("OLLAMA_BASE_URL")
-            .unwrap_or_else(|_| "http://localhost:11434".to_string());
+    pub fn new(host: Option<&str>) -> Self {
+        let base_url = host
+            .map(str::to_owned)
+            .or_else(|| std::env::var("OLLAMA_BASE_URL").ok())
+            .unwrap_or_else(|| "http://localhost:11434".to_string());
+        let base_url = normalize_base_url(&base_url);
         Self { base_url }
     }
 }
 
 impl Default for OllamaProvider {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
+    }
+}
+
+fn normalize_base_url(value: &str) -> String {
+    let trimmed = value.trim().trim_end_matches('/');
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        trimmed.to_string()
+    } else {
+        format!("http://{trimmed}")
     }
 }
 
@@ -86,27 +98,29 @@ impl LlmProvider for OllamaProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn test_ollama_name() {
-        let provider = OllamaProvider::new();
+        let provider = OllamaProvider::new(None);
         assert_eq!(provider.name(), "ollama");
     }
 
     #[test]
     fn test_ollama_endpoint() {
-        let provider = OllamaProvider::new();
+        let provider = OllamaProvider::new(None);
         let endpoint = provider.endpoint();
-        assert!(
-            endpoint.contains("11434"),
-            "endpoint should contain '11434': {}",
-            endpoint
-        );
+        assert_eq!(endpoint, "http://localhost:11434/api/chat");
     }
 
     #[test]
     fn test_extract_content_valid() {
-        let provider = OllamaProvider::new();
+        let provider = OllamaProvider::new(None);
         let line = r#"{"message":{"content":"Hello"},"done":false}"#;
         let content = provider.extract_content(line);
         assert_eq!(content, Some("Hello".to_string()));
@@ -114,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_extract_content_done() {
-        let provider = OllamaProvider::new();
+        let provider = OllamaProvider::new(None);
         let line = r#"{"done":true}"#;
         let content = provider.extract_content(line);
         assert!(content.is_none());
@@ -122,14 +136,14 @@ mod tests {
 
     #[test]
     fn test_extract_content_empty() {
-        let provider = OllamaProvider::new();
+        let provider = OllamaProvider::new(None);
         let content = provider.extract_content("");
         assert!(content.is_none());
     }
 
     #[test]
     fn test_build_request_body() {
-        let provider = OllamaProvider::new();
+        let provider = OllamaProvider::new(None);
         let body = provider.build_request_body(
             "qwen3.5",
             "You are a helpful assistant.",
@@ -144,5 +158,41 @@ mod tests {
         // when no_think is false, omit think
         let body2 = provider.build_request_body("qwen3.5", "sys", "Hi", true, false);
         assert!(!body2.contains("\"think\""));
+    }
+
+    #[test]
+    fn test_ollama_host_from_env() {
+        let _guard = env_lock().lock().unwrap();
+        std::env::remove_var("OLLAMA_BASE_URL");
+        std::env::set_var("OLLAMA_BASE_URL", "http://192.168.1.100:11434");
+
+        let provider = OllamaProvider::new(None);
+
+        std::env::remove_var("OLLAMA_BASE_URL");
+        assert_eq!(provider.endpoint(), "http://192.168.1.100:11434/api/chat");
+    }
+
+    #[test]
+    fn test_ollama_host_from_arg() {
+        let provider = OllamaProvider::new(Some("192.168.1.100:11434"));
+        assert_eq!(provider.endpoint(), "http://192.168.1.100:11434/api/chat");
+    }
+
+    #[test]
+    fn test_ollama_host_arg_overrides_env() {
+        let _guard = env_lock().lock().unwrap();
+        std::env::remove_var("OLLAMA_BASE_URL");
+        std::env::set_var("OLLAMA_BASE_URL", "http://localhost:11434");
+
+        let provider = OllamaProvider::new(Some("https://192.168.1.100:11434"));
+
+        std::env::remove_var("OLLAMA_BASE_URL");
+        assert_eq!(provider.endpoint(), "https://192.168.1.100:11434/api/chat");
+    }
+
+    #[test]
+    fn test_ollama_host_adds_scheme() {
+        let provider = OllamaProvider::new(Some("192.168.1.100"));
+        assert_eq!(provider.endpoint(), "http://192.168.1.100/api/chat");
     }
 }

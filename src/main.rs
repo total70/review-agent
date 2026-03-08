@@ -15,16 +15,28 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Pack(command) => {
-            pack::run_pack(
-                command.base_branch.as_deref(),
-                command.output_dir.as_deref(),
-                &command.template,
-            )?;
+            if command.uncommitted {
+                pack::run_pack_uncommitted(
+                    &command
+                        .base_branch
+                        .clone()
+                        .unwrap_or(pack::detect_default_base_branch()?),
+                    command.output_dir.as_deref(),
+                    &command.template,
+                )?;
+            } else {
+                pack::run_pack(
+                    command.base_branch.as_deref(),
+                    command.output_dir.as_deref(),
+                    &command.template,
+                )?;
+            }
         }
         Commands::Run(command) => {
             let options = RunOptions {
                 provider: command.shared.provider.as_str(),
                 model: &command.shared.model,
+                host: command.shared.host.as_deref(),
                 no_open: command.shared.no_open,
                 no_think: command.shared.no_think,
             };
@@ -35,6 +47,7 @@ async fn main() -> Result<()> {
             let options = RunOptions {
                 provider: command.shared.provider.as_str(),
                 model: &command.shared.model,
+                host: command.shared.host.as_deref(),
                 no_open: command.shared.no_open,
                 no_think: command.shared.no_think,
             };
@@ -64,6 +77,7 @@ mod tests {
                 shared: crate::cli::SharedRunArgs {
                     provider: Provider::Ollama,
                     model: "qwen3.5".into(),
+                    host: None,
                     no_open: false,
                     no_think: false,
                 },
@@ -75,12 +89,14 @@ mod tests {
             base_branch: None,
             output_dir: None,
             template: "general".into(),
+            uncommitted: false,
         });
         let _run = Commands::Run(crate::cli::RunCommand {
             input: std::path::PathBuf::from("/tmp/dummy.zip"),
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: "qwen3.5".into(),
+                host: Some("127.0.0.1:11434".into()),
                 no_open: true,
                 no_think: false,
             },
@@ -91,6 +107,7 @@ mod tests {
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: "qwen3.5".into(),
+                host: None,
                 no_open: false,
                 no_think: true,
             },
@@ -100,13 +117,14 @@ mod tests {
         let _opts = RunOptions {
             provider: "ollama",
             model: "model",
+            host: Some("localhost:11434"),
             no_open: true,
             no_think: false,
         };
 
         // Touch other modules to ensure they resolve (no calls to external services here)
-        let _ = (&html::render_review_html as *const _);
-        let _ = (&pack::run_pack as *const _);
-        let _ = (&review::run_review as *const _);
+        let _ = &html::render_review_html as *const _;
+        let _ = &pack::run_pack as *const _;
+        let _ = &review::run_review as *const _;
     }
 }

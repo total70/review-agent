@@ -47,9 +47,9 @@ pub trait LlmProvider: Send + Sync {
 }
 
 /// Create a provider from a string name
-pub fn create_provider(name: &str) -> Result<Box<dyn LlmProvider>> {
+pub fn create_provider(name: &str, host: Option<&str>) -> Result<Box<dyn LlmProvider>> {
     match name {
-        "ollama" => Ok(Box::new(OllamaProvider::new())),
+        "ollama" => Ok(Box::new(OllamaProvider::new(host))),
         "openai" => {
             let api_key = env::var("OPENAI_API_KEY").context("OPENAI_API_KEY not set")?;
             Ok(Box::new(OpenAIProvider::new(api_key)))
@@ -144,13 +144,19 @@ mod tests {
 
     #[test]
     fn test_create_ollama_provider() {
-        let provider = create_provider("ollama").unwrap();
+        let provider = create_provider("ollama", None).unwrap();
         assert_eq!(provider.name(), "ollama");
     }
 
     #[test]
     fn test_create_provider_invalid() {
-        let result = create_provider("invalid");
+        let result = create_provider("invalid", None);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_ollama_provider_with_host() {
+        let provider = create_provider("ollama", Some("10.0.0.2:11434")).unwrap();
+        assert_eq!(provider.endpoint(), "http://10.0.0.2:11434/api/chat");
     }
 }

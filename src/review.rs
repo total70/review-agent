@@ -12,6 +12,7 @@ use zip::read::ZipArchive;
 pub struct RunOptions<'a> {
     pub provider: &'a str,
     pub model: &'a str,
+    pub host: Option<&'a str>,
     pub no_open: bool,
     pub no_think: bool,
 }
@@ -33,7 +34,7 @@ pub async fn run_review(input: &Path, options: &RunOptions<'_>) -> Result<PathBu
     let user_prompt = build_user_prompt(&prepared.root, &summary)?;
 
     // Create provider and stream response
-    let provider = create_provider(options.provider)
+    let provider = create_provider(options.provider, options.host)
         .with_context(|| format!("Failed to create provider: {}", options.provider))?;
 
     let review = stream_response(
