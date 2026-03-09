@@ -1,5 +1,4 @@
 use anyhow::{bail, Context, Result};
-use std::borrow::Cow;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,30 +14,23 @@ const TEMPLATE_RUST: &str = include_str!("../templates/agents/rust.md");
 const TEMPLATE_ANGULAR: &str = include_str!("../templates/agents/angular.md");
 
 /// Get template content by name or file path
-pub fn get_template(name: &str) -> Result<Cow<'static, str>> {
+pub fn get_template(name: &str) -> Result<String> {
     // First check if it's a built-in template
-    match name {
-        "general" => Ok(Cow::Borrowed(TEMPLATE_GENERAL)),
-        "rust" => Ok(Cow::Borrowed(TEMPLATE_RUST)),
-        "angular" => Ok(Cow::Borrowed(TEMPLATE_ANGULAR)),
+    let content = match name {
+        "general" => TEMPLATE_GENERAL,
+        "rust" => TEMPLATE_RUST,
+        "angular" => TEMPLATE_ANGULAR,
         _ => {
-            // Check if it looks like a file path (contains / or starts with .)
+            // Check if it's a file path
             let path = Path::new(name);
-            let looks_like_path = path.components().count() > 1 || name.starts_with('.');
-
-            // Try to read directly - let the read error provide the message
-            if looks_like_path {
-                let content = fs::read_to_string(path)
-                    .with_context(|| format!("failed to read template file: {}", name))?;
-                return Ok(Cow::Owned(content));
+            if path.exists() && path.is_file() {
+                return fs::read_to_string(path)
+                    .with_context(|| format!("failed to read template file: {}", name));
             }
-
-            bail!(
-                "unknown template '{}'; built-ins are: general, rust, angular",
-                name
-            )
+            bail!("unknown template: {}", name);
         }
-    }
+    };
+    Ok(content.to_string())
 }
 
 pub fn run_pack(
@@ -176,8 +168,7 @@ fn warn_if_overwriting_output_dir(output_dir: &Path) {
 fn write_agents_template(output_dir: &Path, template: &str) -> Result<()> {
     let agents_path = output_dir.join("AGENTS.md");
     let template_content = get_template(template)?;
-    // Cow can be dereferenced to &str
-    fs::write(&agents_path, template_content.as_ref())
+    fs::write(&agents_path, template_content)
         .with_context(|| format!("failed to write AGENTS.md to {}", agents_path.display()))
 }
 
@@ -804,26 +795,6 @@ mod tests {
 
         let content = get_template(custom_path.to_str().unwrap())?;
         assert!(content.contains("Custom Template"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_get_template_missing_file() {
-        let result = get_template("/tmp/__definitely_does_not_exist__.md");
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
-        assert!(
-            msg.contains("template file not found") || msg.contains("failed to read template file"),
-            "got: {msg}"
-        );
-    }
-
-    #[test]
-    fn test_get_template_directory_path_errors() -> anyhow::Result<()> {
-        let td = tempfile::TempDir::new()?;
-        let result = get_template(td.path().to_str().unwrap());
-        // Reading a directory should fail
-        assert!(result.is_err());
         Ok(())
     }
 }

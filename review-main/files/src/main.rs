@@ -6,20 +6,8 @@ mod review;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Commands, Provider};
+use cli::{Cli, Commands};
 use review::RunOptions;
-
-/// Returns the default model for a given provider.
-/// - ollama: qwen3.5
-/// - openai: gpt-5.4
-/// - anthropic: claude-sonnet-4-6
-fn get_default_model(provider: &Provider) -> &'static str {
-    match provider {
-        Provider::Ollama => "qwen3.5",
-        Provider::Openai => "gpt-5.4",
-        Provider::Anthropic => "claude-sonnet-4-6",
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -45,14 +33,9 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Run(command) => {
-            let model = command
-                .shared
-                .model
-                .as_deref()
-                .unwrap_or(get_default_model(&command.shared.provider));
             let options = RunOptions {
                 provider: command.shared.provider.as_str(),
-                model,
+                model: &command.shared.model,
                 host: command.shared.host.as_deref(),
                 no_open: command.shared.no_open,
                 no_think: command.shared.no_think,
@@ -60,24 +43,19 @@ async fn main() -> Result<()> {
             review::run_review(&command.input, &options).await?;
         }
         Commands::Review(command) => {
-            let base_branch = match command.base_branch.clone() {
-                Some(b) => b,
-                None => pack::detect_default_base_branch()?,
-            };
+            let base_branch = command
+                .base_branch
+                .clone()
+                .unwrap_or(pack::detect_default_base_branch()?);
 
             let packed = if command.uncommitted {
                 pack::run_pack_uncommitted(&base_branch, None, &command.template)?
             } else {
                 pack::run_pack(Some(base_branch.as_str()), None, &command.template)?
             };
-            let model = command
-                .shared
-                .model
-                .as_deref()
-                .unwrap_or(get_default_model(&command.shared.provider));
             let options = RunOptions {
                 provider: command.shared.provider.as_str(),
-                model,
+                model: &command.shared.model,
                 host: command.shared.host.as_deref(),
                 no_open: command.shared.no_open,
                 no_think: command.shared.no_think,
@@ -97,15 +75,6 @@ mod tests {
     // We mainly verify that module declarations and imports link properly.
 
     #[test]
-    fn get_default_model_returns_correct_model_for_each_provider() {
-        use crate::cli::Provider;
-
-        assert_eq!(get_default_model(&Provider::Ollama), "qwen3.5");
-        assert_eq!(get_default_model(&Provider::Openai), "gpt-5.4");
-        assert_eq!(get_default_model(&Provider::Anthropic), "claude-sonnet-4-6");
-    }
-
-    #[test]
     fn modules_compile_and_types_are_accessible() {
         use crate::cli::Provider;
         // Ability to name and construct key public types proves modules are wired.
@@ -117,7 +86,7 @@ mod tests {
                 uncommitted: false,
                 shared: crate::cli::SharedRunArgs {
                     provider: Provider::Ollama,
-                    model: Some("qwen3.5".to_string()),
+                    model: "qwen3.5".into(),
                     host: None,
                     no_open: false,
                     no_think: false,
@@ -136,7 +105,7 @@ mod tests {
             input: std::path::PathBuf::from("/tmp/dummy.zip"),
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
-                model: Some("qwen3.5".to_string()),
+                model: "qwen3.5".into(),
                 host: Some("127.0.0.1:11434".into()),
                 no_open: true,
                 no_think: false,
@@ -148,7 +117,7 @@ mod tests {
             uncommitted: true,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
-                model: Some("qwen3.5".to_string()),
+                model: "qwen3.5".into(),
                 host: None,
                 no_open: false,
                 no_think: true,
@@ -162,7 +131,7 @@ mod tests {
             uncommitted: false,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
-                model: Some("qwen3.5".to_string()),
+                model: "qwen3.5".into(),
                 host: None,
                 no_open: false,
                 no_think: true,

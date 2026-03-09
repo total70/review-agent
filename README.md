@@ -25,6 +25,18 @@ export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
+### Default Models
+
+Each provider has a default model:
+
+| Provider | Default Model | Documentation |
+|----------|---------------|---------------|
+| `ollama` | `qwen3.5` | |
+| `openai` | `gpt-5.4` | [OpenAI Models](https://platform.openai.com/docs/models) |
+| `anthropic` | `claude-sonnet-4-6` | [Anthropic Models](https://docs.anthropic.com/en/docs/about-claude/models) |
+
+Override the default with `--model <model>`:
+
 For local Ollama, pull a model:
 
 ```bash

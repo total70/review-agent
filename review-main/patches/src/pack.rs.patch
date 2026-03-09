@@ -1,0 +1,60 @@
+diff --git a/src/pack.rs b/src/pack.rs
+index c8422d3..7c12a9c 100644
+--- a/src/pack.rs
++++ b/src/pack.rs
+@@ -13,14 +13,24 @@ const TEMPLATE_GENERAL: &str = include_str!("../templates/agents/general.md");
+ const TEMPLATE_RUST: &str = include_str!("../templates/agents/rust.md");
+ const TEMPLATE_ANGULAR: &str = include_str!("../templates/agents/angular.md");
+ 
+-/// Get template content by name
+-pub fn get_template(name: &str) -> Result<&'static str> {
+-    match name {
+-        "general" => Ok(TEMPLATE_GENERAL),
+-        "rust" => Ok(TEMPLATE_RUST),
+-        "angular" => Ok(TEMPLATE_ANGULAR),
+-        _ => bail!("unknown template: {}", name),
+-    }
++/// Get template content by name or file path
++pub fn get_template(name: &str) -> Result<String> {
++    // First check if it's a built-in template
++    let content = match name {
++        "general" => TEMPLATE_GENERAL,
++        "rust" => TEMPLATE_RUST,
++        "angular" => TEMPLATE_ANGULAR,
++        _ => {
++            // Check if it's a file path
++            let path = Path::new(name);
++            if path.exists() && path.is_file() {
++                return fs::read_to_string(path)
++                    .with_context(|| format!("failed to read template file: {}", name));
++            }
++            bail!("unknown template: {}", name);
++        }
++    };
++    Ok(content.to_string())
+ }
+ 
+ pub fn run_pack(
+@@ -769,4 +779,22 @@ mod tests {
+         assert!(patch.contains("draft"));
+         Ok(())
+     }
++
++    #[test]
++    fn test_get_template_unknown() {
++        let result = get_template("nonexistent");
++        assert!(result.is_err());
++        assert!(result.unwrap_err().to_string().contains("unknown template"));
++    }
++
++    #[test]
++    fn test_get_template_custom_file() -> anyhow::Result<()> {
++        let td = tempfile::TempDir::new()?;
++        let custom_path = td.path().join("custom.md");
++        fs::write(&custom_path, "# Custom Template\nHello world")?;
++
++        let content = get_template(custom_path.to_str().unwrap())?;
++        assert!(content.contains("Custom Template"));
++        Ok(())
++    }
+ }

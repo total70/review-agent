@@ -52,14 +52,8 @@ pub struct SharedRunArgs {
     #[arg(long, value_enum, default_value_t = Provider::Ollama)]
     pub provider: Provider,
 
-    /// Model to use. Defaults to provider-specific model:
-    ///   - ollama: qwen3.5
-    ///   - openai: gpt-5.4
-    ///   - anthropic: claude-sonnet-4-6
-    ///
-    /// See: https://platform.openai.com/docs/models | https://docs.anthropic.com/en/docs/about-claude/models
-    #[arg(long)]
-    pub model: Option<String>,
+    #[arg(long, default_value = "qwen3.5")]
+    pub model: String,
 
     /// Override the Ollama host (e.g. 192.168.1.100:11434)
     #[arg(long)]
@@ -86,7 +80,7 @@ pub struct ReviewCommand {
     #[arg(long, default_value = "general")]
     pub template: String,
     /// Review working tree changes without creating a temporary branch
-    #[arg(long)]
+    #[arg(long, default_value_t = false)]
     pub uncommitted: bool,
     #[command(flatten)]
     pub shared: SharedRunArgs,
@@ -110,7 +104,7 @@ mod tests {
         match cli.command {
             Commands::Run(run) => {
                 assert!(matches!(run.shared.provider, Provider::Ollama));
-                assert_eq!(run.shared.model, None);
+                assert_eq!(run.shared.model, "qwen3.5");
                 assert_eq!(run.shared.host, None);
                 assert_eq!(run.shared.no_open, false);
                 assert_eq!(run.shared.no_think, false);
@@ -139,8 +133,8 @@ mod tests {
         match cli.command {
             Commands::Run(run) => {
                 assert_eq!(run.input, PathBuf::from("./some/path.zip"));
-                // defaults already asserted in other test, but double check model is None
-                assert_eq!(run.shared.model, None);
+                // defaults already asserted in other test, but double check model presence
+                assert_eq!(run.shared.model, "qwen3.5");
             }
             _ => panic!("expected Commands::Run"),
         }
@@ -153,7 +147,7 @@ mod tests {
             Commands::Review(review) => {
                 assert!(review.base_branch.is_none());
                 assert!(matches!(review.shared.provider, Provider::Ollama));
-                assert_eq!(review.shared.model, None);
+                assert_eq!(review.shared.model, "qwen3.5");
                 assert!(!review.shared.no_open);
                 assert!(!review.shared.no_think);
             }
@@ -166,7 +160,7 @@ mod tests {
         let cli = parse(&["run", "--model", "llama3", "input.zip"]).expect("should parse");
         match cli.command {
             Commands::Run(run) => {
-                assert_eq!(run.shared.model, Some("llama3".to_string()));
+                assert_eq!(run.shared.model, "llama3");
                 assert_eq!(run.shared.host, None);
                 assert_eq!(run.input, PathBuf::from("input.zip"));
             }
