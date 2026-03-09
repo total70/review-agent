@@ -79,6 +79,9 @@ pub struct ReviewCommand {
     pub base_branch: Option<String>,
     #[arg(long, default_value = "general")]
     pub template: String,
+    /// Review working tree changes without creating a temporary branch
+    #[arg(long)]
+    pub uncommitted: bool,
     #[command(flatten)]
     pub shared: SharedRunArgs,
 }
@@ -229,6 +232,28 @@ mod tests {
         let msg = err.to_string();
         // Clap error for missing required arg - be flexible about message content
         assert!(!msg.is_empty(), "should have an error message");
+    }
+
+    #[test]
+    fn combined_args_review_with_uncommitted_flag() {
+        let cli = parse(&[
+            "review",
+            "--base-branch",
+            "origin/main",
+            "--template",
+            "rust",
+            "--uncommitted",
+        ])
+        .expect("should parse");
+        match cli.command {
+            Commands::Review(review) => {
+                assert_eq!(review.base_branch.as_deref(), Some("origin/main"));
+                assert_eq!(review.template, "rust");
+                assert!(review.uncommitted);
+                assert!(!review.shared.no_open);
+            }
+            _ => panic!("expected Commands::Review"),
+        }
     }
 
     #[test]

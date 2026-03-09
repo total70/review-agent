@@ -43,7 +43,16 @@ async fn main() -> Result<()> {
             review::run_review(&command.input, &options).await?;
         }
         Commands::Review(command) => {
-            let packed = pack::run_pack(command.base_branch.as_deref(), None, &command.template)?;
+            let base_branch = match command.base_branch.clone() {
+                Some(b) => b,
+                None => pack::detect_default_base_branch()?,
+            };
+
+            let packed = if command.uncommitted {
+                pack::run_pack_uncommitted(&base_branch, None, &command.template)?
+            } else {
+                pack::run_pack(Some(base_branch.as_str()), None, &command.template)?
+            };
             let options = RunOptions {
                 provider: command.shared.provider.as_str(),
                 model: &command.shared.model,
@@ -74,6 +83,7 @@ mod tests {
             command: Commands::Review(crate::cli::ReviewCommand {
                 base_branch: None,
                 template: "general".into(),
+                uncommitted: false,
                 shared: crate::cli::SharedRunArgs {
                     provider: Provider::Ollama,
                     model: "qwen3.5".into(),
@@ -104,6 +114,21 @@ mod tests {
         let _review = Commands::Review(crate::cli::ReviewCommand {
             base_branch: Some("main".into()),
             template: "rust".into(),
+            uncommitted: true,
+            shared: crate::cli::SharedRunArgs {
+                provider: Provider::Ollama,
+                model: "qwen3.5".into(),
+                host: None,
+                no_open: false,
+                no_think: true,
+            },
+        });
+
+        // Also test the uncommitted=false variant explicitly (for coverage)
+        let _review_no_uncommitted = Commands::Review(crate::cli::ReviewCommand {
+            base_branch: Some("main".into()),
+            template: "rust".into(),
+            uncommitted: false,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: "qwen3.5".into(),
