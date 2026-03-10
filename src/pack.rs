@@ -22,9 +22,9 @@ pub fn get_template(name: &str) -> Result<Cow<'static, str>> {
         "rust" => Ok(Cow::Borrowed(TEMPLATE_RUST)),
         "angular" => Ok(Cow::Borrowed(TEMPLATE_ANGULAR)),
         _ => {
-            // Check if it looks like a file path (contains / or starts with .)
+            // Check if it looks like a file path (contains / or starts with . or contains . for extension)
             let path = Path::new(name);
-            let looks_like_path = path.components().count() > 1 || name.starts_with('.');
+            let looks_like_path = path.components().count() > 1 || name.starts_with('.') || name.contains('.');
 
             // Try to read directly - let the read error provide the message
             if looks_like_path {
@@ -86,21 +86,25 @@ pub fn run_pack_uncommitted(
     let git_root = git_output(&current_dir, &["rev-parse", "--show-toplevel"])?;
     let branch_name = git_output(&current_dir, &["rev-parse", "--abbrev-ref", "HEAD"])?;
 
+    git_output(&current_dir, &["rev-parse", "--verify", "HEAD"])
+        .context("HEAD does not resolve to a commit")?;
+
     let status = git_output(&current_dir, &["status", "--porcelain"])?;
     if status.is_empty() {
         bail!("no uncommitted changes to review");
     }
 
-    let merge_base = git_output(&current_dir, &["merge-base", base_branch, "HEAD"])?;
     let resolved_output = resolve_output_dir(&git_root, &branch_name, output_dir);
     warn_if_overwriting_output_dir(&resolved_output);
 
+    // For uncommitted mode, diff against HEAD to capture only working tree and staged changes,
+    // not commits from other branches that may have been pulled recently.
     create_review_package_from_diff(
         &current_dir,
         &resolved_output,
         &branch_name,
         base_branch,
-        &merge_base,
+        "HEAD",  // Use HEAD instead of merge-base to only show uncommitted changes
         true,
     )?;
     write_agents_template(&resolved_output, template)?;
@@ -176,7 +180,6 @@ fn warn_if_overwriting_output_dir(output_dir: &Path) {
 fn write_agents_template(output_dir: &Path, template: &str) -> Result<()> {
     let agents_path = output_dir.join("AGENTS.md");
     let template_content = get_template(template)?;
-    // Cow can be dereferenced to &str
     fs::write(&agents_path, template_content.as_ref())
         .with_context(|| format!("failed to write AGENTS.md to {}", agents_path.display()))
 }
@@ -813,7 +816,7 @@ mod tests {
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(
-            msg.contains("template file not found") || msg.contains("failed to read template file"),
+            msg.contains("failed to read template file"),
             "got: {msg}"
         );
     }
