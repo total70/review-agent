@@ -87,14 +87,21 @@ async fn main() -> Result<()> {
                 no_open: command.shared.no_open,
                 no_think: command.shared.no_think,
             };
+            // Run review first (opens browser from /tmp)
             let result = review::run_review(&tmp_path, &options).await;
 
-            // Restore from tmp or keep based on flag
-            if command.keep_in_tmp {
-                println!("Review folder kept at: {}", tmp_path.display());
-            } else {
+            // Restore from tmp if --restore flag is set (default: keep in /tmp)
+            // This ensures browser has time to load the files before they're moved
+            if command.restore && result.is_ok() {
                 pack::restore_from_tmp(&tmp_path, &packed)?;
                 println!("Restored review folder to: {}", packed.display());
+            } else {
+                println!("Review folder kept at: {}", tmp_path.display());
+                println!(
+                    "To restore manually: mv {} {}",
+                    tmp_path.display(),
+                    packed.display()
+                );
             }
 
             result?;
@@ -130,7 +137,7 @@ mod tests {
                 base_branch: None,
                 template: "general".into(),
                 uncommitted: false,
-                keep_in_tmp: false,
+                restore: false,
                 shared: crate::cli::SharedRunArgs {
                     provider: Provider::Ollama,
                     model: Some("qwen3.5".to_string()),
@@ -162,7 +169,7 @@ mod tests {
             base_branch: Some("main".into()),
             template: "rust".into(),
             uncommitted: true,
-            keep_in_tmp: false,
+            restore: false,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: Some("qwen3.5".to_string()),
@@ -177,7 +184,7 @@ mod tests {
             base_branch: Some("main".into()),
             template: "rust".into(),
             uncommitted: false,
-            keep_in_tmp: true,
+            restore: true,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: Some("qwen3.5".to_string()),
