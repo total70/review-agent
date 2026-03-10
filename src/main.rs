@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
                     &command
                         .base_branch
                         .clone()
-                        .unwrap_or(pack::detect_default_base_branch()?),
+                        .unwrap_or_else(|| pack::detect_default_base_branch().unwrap()),
                     command.output_dir.as_deref(),
                     &command.template,
                 )?;
@@ -70,6 +70,11 @@ async fn main() -> Result<()> {
             } else {
                 pack::run_pack(Some(base_branch.as_str()), None, &command.template)?
             };
+
+            // Move packed folder to /tmp before running review
+            let tmp_path = pack::move_to_tmp(&packed)?;
+            println!("Moved review folder to: {}", tmp_path.display());
+
             let model = command
                 .shared
                 .model
@@ -82,7 +87,17 @@ async fn main() -> Result<()> {
                 no_open: command.shared.no_open,
                 no_think: command.shared.no_think,
             };
-            review::run_review(&packed, &options).await?;
+            let result = review::run_review(&tmp_path, &options).await;
+
+            // Restore from tmp or keep based on flag
+            if command.keep_in_tmp {
+                println!("Review folder kept at: {}", tmp_path.display());
+            } else {
+                pack::restore_from_tmp(&tmp_path, &packed)?;
+                println!("Restored review folder to: {}", packed.display());
+            }
+
+            result?;
         }
     }
 
@@ -115,6 +130,7 @@ mod tests {
                 base_branch: None,
                 template: "general".into(),
                 uncommitted: false,
+                keep_in_tmp: false,
                 shared: crate::cli::SharedRunArgs {
                     provider: Provider::Ollama,
                     model: Some("qwen3.5".to_string()),
@@ -146,6 +162,7 @@ mod tests {
             base_branch: Some("main".into()),
             template: "rust".into(),
             uncommitted: true,
+            keep_in_tmp: false,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: Some("qwen3.5".to_string()),
@@ -160,6 +177,7 @@ mod tests {
             base_branch: Some("main".into()),
             template: "rust".into(),
             uncommitted: false,
+            keep_in_tmp: true,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: Some("qwen3.5".to_string()),

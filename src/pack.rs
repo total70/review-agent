@@ -9,6 +9,46 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // Embed the script from scripts/ folder instead of src/
 const REVIEW_BRANCH_SCRIPT: &str = include_str!("../scripts/review-branch.sh");
 
+/// Move a folder to /tmp with a unique timestamp prefix
+pub fn move_to_tmp(source: &PathBuf) -> Result<PathBuf> {
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
+
+    let folder_name = source
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("Invalid folder name"))?;
+
+    let tmp_name = format!("review-{}-{}", timestamp, folder_name.to_string_lossy());
+    let tmp_path = PathBuf::from("/tmp").join(tmp_name);
+
+    // Use mv command for cross-filesystem compatibility (macOS /tmp is separate)
+    let status = Command::new("mv")
+        .arg(source)
+        .arg(&tmp_path)
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to execute mv: {}", e))?;
+
+    if !status.success() {
+        return Err(anyhow::anyhow!("mv command failed with status: {}", status));
+    }
+
+    Ok(tmp_path)
+}
+
+/// Restore folder from /tmp to original location
+pub fn restore_from_tmp(tmp_path: &PathBuf, original_path: &PathBuf) -> Result<()> {
+    let status = Command::new("mv")
+        .arg(tmp_path)
+        .arg(original_path)
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to execute mv: {}", e))?;
+
+    if !status.success() {
+        return Err(anyhow::anyhow!("mv command failed with status: {}", status));
+    }
+
+    Ok(())
+}
+
 // Embed the agent templates
 const TEMPLATE_GENERAL: &str = include_str!("../templates/agents/general.md");
 const TEMPLATE_RUST: &str = include_str!("../templates/agents/rust.md");
@@ -24,10 +64,11 @@ pub fn get_template(name: &str) -> Result<Cow<'static, str>> {
         _ => {
             // Check if it looks like a file path (contains / or starts with . or contains . for extension)
             let path = Path::new(name);
-            let looks_like_path = path.components().count() > 1 || name.starts_with('.') || name.contains('.');
+            let looks_like_path =
+                path.components().count() > 1 || name.starts_with('.') || name.contains('.');
 
-            // Try to read directly - let the read error provide the message
-            if looks_like_path {
+            // Try to read as a file if it looks like a path, OR if the file actually exists
+            if looks_like_path || path.exists() {
                 let content = fs::read_to_string(path)
                     .with_context(|| format!("failed to read template file: {}", name))?;
                 return Ok(Cow::Owned(content));
@@ -104,7 +145,7 @@ pub fn run_pack_uncommitted(
         &resolved_output,
         &branch_name,
         base_branch,
-        "HEAD",  // Use HEAD instead of merge-base to only show uncommitted changes
+        "HEAD", // Use HEAD instead of merge-base to only show uncommitted changes
         true,
     )?;
     write_agents_template(&resolved_output, template)?;
@@ -815,10 +856,7 @@ mod tests {
         let result = get_template("/tmp/__definitely_does_not_exist__.md");
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
-        assert!(
-            msg.contains("failed to read template file"),
-            "got: {msg}"
-        );
+        assert!(msg.contains("failed to read template file"), "got: {msg}");
     }
 
     #[test]

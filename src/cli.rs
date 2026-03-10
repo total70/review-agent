@@ -88,6 +88,9 @@ pub struct ReviewCommand {
     /// Review working tree changes without creating a temporary branch
     #[arg(long)]
     pub uncommitted: bool,
+    /// Keep the review folder in /tmp after completion
+    #[arg(long)]
+    pub keep_in_tmp: bool,
     #[command(flatten)]
     pub shared: SharedRunArgs,
 }
