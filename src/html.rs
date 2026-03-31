@@ -16,21 +16,60 @@ pub fn render_review_html(
     let parser = Parser::new_ext(markdown, Options::all());
     html::push_html(&mut html_output, parser);
 
+    let title = format_document_title(branch_name, generated_at);
+    write_html_document(&title, &html_output, output_path, branch_name, generated_at)
+}
+
+pub fn render_error_html(
+    error_title: &str,
+    error_message: &str,
+    output_path: &Path,
+    branch_name: &str,
+    generated_at: DateTime<Local>,
+) -> Result<()> {
     let title = format!(
-        "review-agent: {} - {}",
+        "review-agent: {} - error - {}",
         branch_name,
         generated_at.format("%Y-%m-%d %H:%M:%S %Z")
     );
+    let html_output = format!(
+        concat!(
+            "<section class=\"error-callout\">",
+            "<p class=\"error-label\">Review failed</p>",
+            "<h2>{}</h2>",
+            "<pre><code>{}</code></pre>",
+            "</section>"
+        ),
+        escape_html(error_title),
+        escape_html(error_message),
+    );
 
-    // Fill placeholders in the external HTML template
+    write_html_document(&title, &html_output, output_path, branch_name, generated_at)
+}
+
+fn format_document_title(branch_name: &str, generated_at: DateTime<Local>) -> String {
+    format!(
+        "review-agent: {} - {}",
+        branch_name,
+        generated_at.format("%Y-%m-%d %H:%M:%S %Z")
+    )
+}
+
+fn write_html_document(
+    title: &str,
+    html_content: &str,
+    output_path: &Path,
+    branch_name: &str,
+    generated_at: DateTime<Local>,
+) -> Result<()> {
     let document = HTML_TEMPLATE
-        .replace("{{title}}", &escape_html(&title))
+        .replace("{{title}}", &escape_html(title))
         .replace("{{branch_name}}", &escape_html(branch_name))
         .replace(
             "{{generated_at}}",
             &escape_html(&generated_at.format("%Y-%m-%d %H:%M:%S %Z").to_string()),
         )
-        .replace("{{html_content}}", &html_output);
+        .replace("{{html_content}}", html_content);
 
     fs::write(output_path, document)
         .with_context(|| format!("failed to write HTML output to {}", output_path.display()))?;
@@ -212,5 +251,43 @@ fn main() { println!("hi"); }
         assert!(contents.contains("<ul>"));
         assert!(contents.contains("<li>Item 1</li>"));
         assert!(contents.contains("<li>Item 2</li>"));
+    }
+
+    #[test]
+    fn render_error_html_writes_styled_error_content() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        let dt = fixed_local_datetime();
+
+        render_error_html(
+            "API request failed",
+            "provider timed out after 30s",
+            &path,
+            "feature/error-page",
+            dt,
+        )
+        .expect("render ok");
+
+        let out = fs::read_to_string(&path).unwrap();
+        assert!(out.contains("<article>"));
+        assert!(out.contains("class=\"error-callout\""));
+        assert!(out.contains("<p class=\"error-label\">Review failed</p>"));
+        assert!(out.contains("<h2>API request failed</h2>"));
+        assert!(out.contains("provider timed out after 30s"));
+        assert!(out.contains("<title>review-agent: feature/error-page - error - "));
+    }
+
+    #[test]
+    fn render_error_html_escapes_error_fields() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        let dt = fixed_local_datetime();
+
+        render_error_html("<bad title>", "boom & \"oops\"", &path, "main", dt).expect("render ok");
+
+        let out = fs::read_to_string(&path).unwrap();
+        assert!(out.contains("&lt;bad title&gt;"));
+        assert!(out.contains("boom &amp; &quot;oops&quot;"));
+        assert!(!out.contains("<bad title>"));
     }
 }

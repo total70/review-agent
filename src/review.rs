@@ -1,4 +1,4 @@
-use crate::html::render_review_html;
+use crate::html::{render_error_html, render_review_html};
 use crate::providers::{create_provider, stream_response};
 use anyhow::{Context, Result};
 use chrono::Local;
@@ -67,28 +67,47 @@ pub async fn run_review(input: &Path, options: &RunOptions<'_>) -> Result<PathBu
         )
     })?;
     let user_prompt = build_user_prompt(&prepared.root, &summary, options.context)?;
+    let html_path = prepared.root.join("review.html");
+    let branch_name =
+        extract_branch_name(&summary).unwrap_or_else(|| prepared.display_name.clone());
+    let generated_at = Local::now();
 
     // Create provider and stream response
     let provider = create_provider(options.provider, options.host)
         .with_context(|| format!("Failed to create provider: {}", options.provider))?;
 
-    let review = stream_response(
+    let review = match stream_response(
         provider.as_ref(),
         options.model,
         &system_prompt,
         &user_prompt,
         options.no_think,
     )
-    .await?;
+    .await
+    {
+        Ok(review) => review,
+        Err(error) => {
+            render_error_html(
+                "Unable to generate review",
+                &error.to_string(),
+                &html_path,
+                &branch_name,
+                generated_at,
+            )
+            .with_context(|| format!("failed to render error HTML to {}", html_path.display()))?;
+            if !options.no_open {
+                open::that(&html_path)
+                    .with_context(|| format!("failed to open {}", html_path.display()))?;
+            }
+            return Err(error);
+        }
+    };
 
     let review_path = prepared.root.join("review.md");
     fs::write(&review_path, &review)
         .with_context(|| format!("failed to write {}", review_path.display()))?;
 
-    let html_path = prepared.root.join("review.html");
-    let branch_name =
-        extract_branch_name(&summary).unwrap_or_else(|| prepared.display_name.clone());
-    render_review_html(&review, &html_path, &branch_name, Local::now())?;
+    render_review_html(&review, &html_path, &branch_name, generated_at)?;
 
     if !options.no_open {
         open::that(&html_path)
