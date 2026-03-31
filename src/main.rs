@@ -7,7 +7,7 @@ mod review;
 use anyhow::Result;
 use clap::Parser;
 use cli::{Cli, Commands, Provider};
-use review::RunOptions;
+use review::{load_context, RunOptions};
 
 /// Returns the default model for a given provider.
 /// - ollama: qwen3.5
@@ -50,13 +50,16 @@ async fn main() -> Result<()> {
                 .model
                 .as_deref()
                 .unwrap_or(get_default_model(&command.shared.provider));
-            let options = RunOptions {
-                provider: command.shared.provider.as_str(),
+            let context =
+                load_context(command.context.as_deref(), command.context_file.as_deref())?;
+            let options = RunOptions::new(
+                command.shared.provider.as_str(),
                 model,
-                host: command.shared.host.as_deref(),
-                no_open: command.shared.no_open,
-                no_think: command.shared.no_think,
-            };
+                command.shared.host.as_deref(),
+                context.as_deref(),
+                command.shared.no_open,
+                command.shared.no_think,
+            );
             review::run_review(&command.input, &options).await?;
         }
         Commands::Review(command) => {
@@ -80,13 +83,16 @@ async fn main() -> Result<()> {
                 .model
                 .as_deref()
                 .unwrap_or(get_default_model(&command.shared.provider));
-            let options = RunOptions {
-                provider: command.shared.provider.as_str(),
+            let context =
+                load_context(command.context.as_deref(), command.context_file.as_deref())?;
+            let options = RunOptions::new(
+                command.shared.provider.as_str(),
                 model,
-                host: command.shared.host.as_deref(),
-                no_open: command.shared.no_open,
-                no_think: command.shared.no_think,
-            };
+                command.shared.host.as_deref(),
+                context.as_deref(),
+                command.shared.no_open,
+                command.shared.no_think,
+            );
             // Run review first (opens browser from /tmp)
             let result = review::run_review(&tmp_path, &options).await;
 
@@ -138,6 +144,8 @@ mod tests {
                 template: "general".into(),
                 uncommitted: false,
                 restore: false,
+                context: None,
+                context_file: None,
                 shared: crate::cli::SharedRunArgs {
                     provider: Provider::Ollama,
                     model: Some("qwen3.5".to_string()),
@@ -157,6 +165,8 @@ mod tests {
         });
         let _run = Commands::Run(crate::cli::RunCommand {
             input: std::path::PathBuf::from("/tmp/dummy.zip"),
+            context: Some("inline context".into()),
+            context_file: None,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: Some("qwen3.5".to_string()),
@@ -170,6 +180,8 @@ mod tests {
             template: "rust".into(),
             uncommitted: true,
             restore: false,
+            context: None,
+            context_file: Some(std::path::PathBuf::from("context.md")),
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: Some("qwen3.5".to_string()),
@@ -185,6 +197,8 @@ mod tests {
             template: "rust".into(),
             uncommitted: false,
             restore: true,
+            context: None,
+            context_file: None,
             shared: crate::cli::SharedRunArgs {
                 provider: Provider::Ollama,
                 model: Some("qwen3.5".to_string()),
@@ -195,17 +209,34 @@ mod tests {
         });
 
         // RunOptions lifetime/fields compile from review module
-        let _opts = RunOptions {
-            provider: "ollama",
-            model: "model",
-            host: Some("localhost:11434"),
-            no_open: true,
-            no_think: false,
-        };
+        let _opts = RunOptions::new(
+            "ollama",
+            "model",
+            Some("localhost:11434"),
+            Some("resolved context"),
+            true,
+            false,
+        );
 
         // Touch other modules to ensure they resolve (no calls to external services here)
         let _ = &html::render_review_html as *const _;
         let _ = &pack::run_pack as *const _;
         let _ = &review::run_review as *const _;
+    }
+
+    #[test]
+    fn load_context_reads_file_or_inline_text() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("context.md");
+        std::fs::write(&path, "file context").expect("write context");
+
+        assert_eq!(
+            load_context(None, Some(path.as_path())).expect("load from file"),
+            Some("file context".to_string())
+        );
+        assert_eq!(
+            load_context(Some("inline context"), None).expect("load inline"),
+            Some("inline context".to_string())
+        );
     }
 }

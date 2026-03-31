@@ -75,6 +75,12 @@ pub struct SharedRunArgs {
 #[derive(Debug, Args)]
 pub struct RunCommand {
     pub input: PathBuf,
+    /// Additional context as inline text
+    #[arg(long, conflicts_with = "context_file")]
+    pub context: Option<String>,
+    /// Read additional context from a file path
+    #[arg(long, conflicts_with = "context")]
+    pub context_file: Option<PathBuf>,
     #[command(flatten)]
     pub shared: SharedRunArgs,
 }
@@ -91,6 +97,12 @@ pub struct ReviewCommand {
     /// Restore the review folder from /tmp after completion (default: keep in /tmp)
     #[arg(long)]
     pub restore: bool,
+    /// Additional context as inline text
+    #[arg(long, conflicts_with = "context_file")]
+    pub context: Option<String>,
+    /// Read additional context from a file path
+    #[arg(long, conflicts_with = "context")]
+    pub context_file: Option<PathBuf>,
     #[command(flatten)]
     pub shared: SharedRunArgs,
 }
@@ -117,6 +129,8 @@ mod tests {
                 assert_eq!(run.shared.host, None);
                 assert_eq!(run.shared.no_open, false);
                 assert_eq!(run.shared.no_think, false);
+                assert_eq!(run.context, None);
+                assert_eq!(run.context_file, None);
                 assert_eq!(run.input, PathBuf::from("input.zip"));
             }
             _ => panic!("expected Commands::Run"),
@@ -159,6 +173,8 @@ mod tests {
                 assert_eq!(review.shared.model, None);
                 assert!(!review.shared.no_open);
                 assert!(!review.shared.no_think);
+                assert_eq!(review.context, None);
+                assert_eq!(review.context_file, None);
             }
             _ => panic!("expected Commands::Review"),
         }
@@ -171,6 +187,8 @@ mod tests {
             Commands::Run(run) => {
                 assert_eq!(run.shared.model, Some("llama3".to_string()));
                 assert_eq!(run.shared.host, None);
+                assert_eq!(run.context, None);
+                assert_eq!(run.context_file, None);
                 assert_eq!(run.input, PathBuf::from("input.zip"));
             }
             _ => panic!("expected Commands::Run"),
@@ -186,6 +204,8 @@ mod tests {
                 assert_eq!(review.shared.host, None);
                 assert!(review.shared.no_open);
                 assert!(!review.shared.no_think);
+                assert_eq!(review.context, None);
+                assert_eq!(review.context_file, None);
             }
             _ => panic!("expected Commands::Review"),
         }
@@ -287,6 +307,48 @@ mod tests {
                     review.shared.host.as_deref(),
                     Some("https://ollama.example")
                 );
+            }
+            _ => panic!("expected Commands::Review"),
+        }
+    }
+
+    #[test]
+    fn context_flag_parses_for_run_and_review() {
+        let cli = parse(&["run", "--context", "notes", "input.zip"]).expect("should parse");
+        match cli.command {
+            Commands::Run(run) => {
+                assert_eq!(run.context.as_deref(), Some("notes"));
+                assert_eq!(run.context_file, None);
+            }
+            _ => panic!("expected Commands::Run"),
+        }
+
+        let cli = parse(&["review", "--context", "notes"]).expect("should parse");
+        match cli.command {
+            Commands::Review(review) => {
+                assert_eq!(review.context.as_deref(), Some("notes"));
+                assert_eq!(review.context_file, None);
+            }
+            _ => panic!("expected Commands::Review"),
+        }
+    }
+
+    #[test]
+    fn context_file_flag_parses_for_run_and_review() {
+        let cli = parse(&["run", "--context-file", "notes.md", "input.zip"]).expect("should parse");
+        match cli.command {
+            Commands::Run(run) => {
+                assert_eq!(run.context, None);
+                assert_eq!(run.context_file, Some(PathBuf::from("notes.md")));
+            }
+            _ => panic!("expected Commands::Run"),
+        }
+
+        let cli = parse(&["review", "--context-file", "notes.md"]).expect("should parse");
+        match cli.command {
+            Commands::Review(review) => {
+                assert_eq!(review.context, None);
+                assert_eq!(review.context_file, Some(PathBuf::from("notes.md")));
             }
             _ => panic!("expected Commands::Review"),
         }

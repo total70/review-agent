@@ -13,8 +13,43 @@ pub struct RunOptions<'a> {
     pub provider: &'a str,
     pub model: &'a str,
     pub host: Option<&'a str>,
+    pub context: Option<&'a str>,
     pub no_open: bool,
     pub no_think: bool,
+}
+
+impl<'a> RunOptions<'a> {
+    pub fn new(
+        provider: &'a str,
+        model: &'a str,
+        host: Option<&'a str>,
+        context: Option<&'a str>,
+        no_open: bool,
+        no_think: bool,
+    ) -> Self {
+        Self {
+            provider,
+            model,
+            host,
+            context: normalize_context(context),
+            no_open,
+            no_think,
+        }
+    }
+}
+
+pub fn load_context(context: Option<&str>, context_file: Option<&Path>) -> Result<Option<String>> {
+    let context = match (context, context_file) {
+        (Some(inline), None) => Some(inline.to_string()),
+        (None, Some(path)) => Some(
+            fs::read_to_string(path)
+                .with_context(|| format!("failed to read context file {}", path.display()))?,
+        ),
+        (None, None) => None,
+        (Some(_), Some(_)) => unreachable!("clap enforces mutual exclusion for context flags"),
+    };
+
+    Ok(context.and_then(|value| normalize_context(Some(value.as_str())).map(str::to_owned)))
 }
 
 pub async fn run_review(input: &Path, options: &RunOptions<'_>) -> Result<PathBuf> {
@@ -31,7 +66,7 @@ pub async fn run_review(input: &Path, options: &RunOptions<'_>) -> Result<PathBu
             prepared.root.join("summary.md").display()
         )
     })?;
-    let user_prompt = build_user_prompt(&prepared.root, &summary)?;
+    let user_prompt = build_user_prompt(&prepared.root, &summary, options.context)?;
 
     // Create provider and stream response
     let provider = create_provider(options.provider, options.host)
@@ -112,7 +147,7 @@ impl PreparedInput {
     }
 }
 
-fn build_user_prompt(root: &Path, summary: &str) -> Result<String> {
+fn build_user_prompt(root: &Path, summary: &str, context: Option<&str>) -> Result<String> {
     let patches_dir = root.join("patches");
     let mut patch_files = Vec::new();
     for entry in WalkDir::new(&patches_dir) {
@@ -125,6 +160,11 @@ fn build_user_prompt(root: &Path, summary: &str) -> Result<String> {
 
     let mut prompt = String::new();
     prompt.push_str("Review this branch package.\n\n");
+    if let Some(context) = normalize_context(context) {
+        prompt.push_str("## Additional Context\n");
+        prompt.push_str(context);
+        prompt.push_str("\n\n");
+    }
     prompt.push_str("## summary.md\n");
     prompt.push_str(summary.trim());
     prompt.push_str("\n\n");
@@ -240,6 +280,10 @@ fn extract_branch_name(summary: &str) -> Option<String> {
     })
 }
 
+fn normalize_context(context: Option<&str>) -> Option<&str> {
+    context.map(str::trim).filter(|context| !context.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,7 +364,12 @@ mod tests {
     fn test_build_user_prompt_contents() {
         let dir = make_valid_review_dir();
         let summary = fs::read_to_string(dir.path().join("summary.md")).unwrap();
-        let prompt = build_user_prompt(dir.path(), &summary).expect("prompt");
+        let prompt = build_user_prompt(dir.path(), &summary, Some("Focus on auth regression risk"))
+            .expect("prompt");
+
+        assert!(prompt.starts_with(
+            "Review this branch package.\n\n## Additional Context\nFocus on auth regression risk\n\n"
+        ));
 
         // Contains summary header and content (trimmed)
         assert!(prompt.contains("## summary.md"));
@@ -334,6 +383,49 @@ mod tests {
         assert!(prompt.contains("```diff"));
         assert!(prompt.contains("+add a"));
         assert!(prompt.contains("+add b"));
+    }
+
+    #[test]
+    fn test_build_user_prompt_omits_blank_context() {
+        let dir = make_valid_review_dir();
+        let summary = fs::read_to_string(dir.path().join("summary.md")).unwrap();
+        let prompt = build_user_prompt(dir.path(), &summary, Some("   \n\t  ")).expect("prompt");
+
+        assert!(!prompt.contains("## Additional Context"));
+        assert!(prompt.starts_with("Review this branch package.\n\n## summary.md\n"));
+    }
+
+    #[test]
+    fn test_load_context_from_unreadable_file_returns_err() {
+        let dir = tempdir().unwrap();
+        let missing = dir.path().join("missing-context.md");
+
+        let err = load_context(None, Some(&missing)).expect_err("missing file should error");
+        let msg = err.to_string();
+        assert!(msg.contains("failed to read context file"));
+        assert!(msg.contains("missing-context.md"));
+    }
+
+    #[test]
+    fn test_load_context_filters_whitespace_only_context() {
+        let context = load_context(Some("   \n\t  "), None).expect("load context");
+        assert_eq!(context, None);
+    }
+
+    #[test]
+    fn test_run_options_normalizes_context_once() {
+        let options = RunOptions::new(
+            "ollama",
+            "qwen3.5",
+            None,
+            Some("  review auth  "),
+            true,
+            false,
+        );
+        assert_eq!(options.context, Some("review auth"));
+
+        let blank = RunOptions::new("ollama", "qwen3.5", None, Some("   "), true, false);
+        assert_eq!(blank.context, None);
     }
 
     #[test]
